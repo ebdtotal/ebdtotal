@@ -12,6 +12,8 @@ dist
 android
 .capacitor
 AuthKey_*.p8
+ios_distribution_private_key
+*_private_key
 *.p12
 *.mobileprovision
 ios/App/build
