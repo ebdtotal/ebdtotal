@@ -1,0 +1,41 @@
+workflows:
+  ios-testflight:
+    name: EDB Total iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 75
+    environment:
+      groups:
+        - app_store_credentials
+      vars:
+        BUNDLE_ID: com.portalebd.app
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+      node: v22
+    scripts:
+      - name: Instalar dependências
+        script: npm ci
+      - name: Build web e sync Capacitor
+        script: |
+          npm run build
+          npx cap sync ios
+      - name: Número de build
+        script: |
+          BUILD="${BUILD_NUMBER:-$CM_BUILD_NUMBER}"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = ${BUILD};/g" ios/App/App.xcodeproj/project.pbxproj
+      - name: Certificado e perfil App Store
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Gerar IPA
+        script: |
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true

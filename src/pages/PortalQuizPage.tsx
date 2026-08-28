@@ -1,0 +1,82 @@
+import { useMemo, useState } from 'react'
+import { PrimaryButton } from '../components/ui'
+import { useStore } from '../lib/store'
+import { pontosAvaliacaoDe } from '../lib/types'
+
+export function PortalQuizPage() {
+  const { state, usuario, responderAvaliacao } = useStore()
+  const pessoaId = usuario?.pessoaId
+  const quizzes = state.avaliacoes.filter((a) => a.turma === usuario?.turma)
+  const [escolhas, setEscolhas] = useState<Record<string, number>>({})
+  const [enviando, setEnviando] = useState(false)
+
+  const pendentes = useMemo(
+    () => quizzes.filter((q) => !q.respostas.some((r) => r.pessoaId === pessoaId)),
+    [quizzes, pessoaId],
+  )
+  const prontas = pendentes.filter((q) => escolhas[q.id] !== undefined)
+  const pontos = pessoaId ? pontosAvaliacaoDe(state.avaliacoes, pessoaId) : 0
+
+  function enviar() {
+    if (!pessoaId || prontas.length === 0) return
+    setEnviando(true)
+    for (const q of prontas) {
+      const alt = escolhas[q.id]
+      if (alt === undefined) continue
+      responderAvaliacao(q.id, pessoaId, alt)
+    }
+    setEscolhas({})
+    setEnviando(false)
+  }
+
+  if (!pessoaId) return <p className="text-sm text-muted">Cadastro de aluno não vinculado.</p>
+
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-ink">Atividades</h1>
+      <p className="mb-5 text-sm text-muted">Escolha as alternativas e envie. Cada acerto vale 1 ponto.</p>
+      {pontos > 0 ? (
+        <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Você tem <b>{pontos}</b> {pontos === 1 ? 'ponto' : 'pontos'} nas avaliações.
+        </p>
+      ) : null}
+      {quizzes.map((q) => {
+        const resp = q.respostas.find((r) => r.pessoaId === pessoaId)
+        const marcada = resp ? resp.alternativa : escolhas[q.id]
+        const acertou = resp ? resp.alternativa === q.correta : false
+        return (
+          <section key={q.id} className="mb-4 rounded-xl bg-white p-5 shadow-sm">
+            <h2 className="font-semibold">{q.pergunta}</h2>
+            <ul className="mt-3 space-y-2">
+              {q.alternativas.map((alt, i) => (
+                <li key={`${q.id}-${i}`}>
+                  <button
+                    type="button"
+                    disabled={!!resp}
+                    onClick={() => setEscolhas((prev) => ({ ...prev, [q.id]: i }))}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
+                      marcada === i ? 'border-navy bg-navy/5 font-semibold' : 'border-line hover:bg-page'
+                    }`}
+                  >
+                    ○ {alt}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {resp ? (
+              <p className={`mt-3 text-sm ${acertou ? 'text-emerald-700' : 'text-muted'}`}>
+                {acertou ? 'Resposta enviada · +1 ponto' : 'Resposta enviada. O professor vê o consolidado da turma.'}
+              </p>
+            ) : null}
+          </section>
+        )
+      })}
+      {pendentes.length > 0 ? (
+        <PrimaryButton className="w-full" disabled={prontas.length === 0 || enviando} onClick={enviar}>
+          Enviar avaliação
+        </PrimaryButton>
+      ) : null}
+      {quizzes.length === 0 ? <p className="text-sm text-muted">Nenhuma avaliação para a sua turma.</p> : null}
+    </div>
+  )
+}

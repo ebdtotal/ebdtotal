@@ -1,0 +1,820 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import { createEmptyIgrejaState, createSeedState } from './seed'
+import {
+  apiAlterarSenha,
+  apiGetState,
+  apiLogin,
+  apiLogout,
+  apiSaveState,
+  apiToken,
+  setApiToken,
+} from './api'
+import { catalogoCresceu, hidratarEstado } from './pedagogia'
+import type {
+  AppState,
+  Avaliacao,
+  Aviso,
+  Certificado,
+  CursoProfessor,
+  Escola,
+  EventoCalendario,
+  LancamentoFinanceiro,
+  Licao,
+  MetaEscola,
+  ModeloCertificado,
+  Pessoa,
+  RelatorioDiario,
+  SetorAcesso,
+  TurmaCadastro,
+  Usuario,
+} from './types'
+import { formatDateBR, senhaGerada, uid, usernameFromNome, whatsappSuporte } from './utils'
+
+const STORAGE_KEY = 'portal-ebd-v7'
+
+function loadState(): AppState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return createSeedState()
+    const parsed = JSON.parse(raw) as AppState
+    if (!parsed.usuarios) return createSeedState()
+    const seed = createEmptyIgrejaState()
+    return hidratarEstado({
+      ...seed,
+      ...parsed,
+      turmas: parsed.turmas ?? seed.turmas,
+      lancamentos: parsed.lancamentos ?? seed.lancamentos,
+      licoes: parsed.licoes ?? seed.licoes,
+      eventos: parsed.eventos ?? seed.eventos,
+      avaliacoes: parsed.avaliacoes ?? seed.avaliacoes,
+      metas: parsed.metas?.length ? parsed.metas : seed.metas,
+      avisos: parsed.avisos ?? seed.avisos,
+      desafios: parsed.desafios ?? seed.desafios,
+      certificados: parsed.certificados ?? seed.certificados,
+      modeloCertificado: parsed.modeloCertificado ?? seed.modeloCertificado,
+      licoesRemovidas: parsed.licoesRemovidas ?? seed.licoesRemovidas,
+      cursos: parsed.cursos?.length ? parsed.cursos : seed.cursos,
+      progressos: parsed.progressos ?? seed.progressos,
+      rankingCompetitivo: parsed.rankingCompetitivo ?? false,
+      whatsapp: whatsappSuporte(parsed.whatsapp),
+      sessaoId: parsed.sessaoId ?? null,
+    })
+  } catch {
+    return createSeedState()
+  }
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function persist(state: AppState) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  if (!apiToken()) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    void apiSaveState(state).catch(() => {})
+  }, 600)
+}
+
+export type AcessoApp = { username: string; senha: string; email?: string }
+
+const SUFIXO_PAPEL = { professor: 'prof', aluno: 'aluno', superintendente: 'super', secretario: 'sec' } as const
+
+function usernameUnico(usuarios: Usuario[], base: string, exceptId?: string): string {
+  let username = base
+  let n = 1
+  while (usuarios.some((u) => u.id !== exceptId && u.username.toLowerCase() === username.toLowerCase())) {
+    n += 1
+    username = `${base}${n}`
+  }
+  return username
+}
+
+export function sugestaoUsername(nome: string, papel: keyof typeof SUFIXO_PAPEL, usuarios: Usuario[], exceptId?: string) {
+  const base = `${usernameFromNome(nome)}.${SUFIXO_PAPEL[papel]}`
+  return usernameUnico(usuarios, base, exceptId)
+}
+
+function papelDaPessoa(tipo: Pessoa['tipo']): 'professor' | 'aluno' | 'superintendente' | 'secretario' | null {
+  if (tipo === 'Professor') return 'professor'
+  if (tipo === 'Aluno') return 'aluno'
+  if (tipo === 'Superintendente') return 'superintendente'
+  if (tipo === 'Secretário') return 'secretario'
+  return null
+}
+
+function garantirLogin(
+  usuarios: Usuario[],
+  pessoa: Pessoa,
+  papel: 'professor' | 'aluno' | 'superintendente' | 'secretario',
+  acesso?: AcessoApp | null,
+): Usuario[] {
+  const daPessoa = usuarios.filter((u) => u.pessoaId === pessoa.id)
+  const existente = daPessoa.find((u) => u.papel === papel) ?? daPessoa[0]
+  const usernameInformado = (acesso?.username ?? '').trim().toLowerCase()
+  const senhaInformada = (acesso?.senha ?? '').trim()
+  const email = (acesso?.email ?? pessoa.email ?? existente?.email ?? '').trim().toLowerCase()
+  if (existente) {
+    const username = usernameInformado
+      ? usernameUnico(usuarios, usernameInformado, existente.id)
+      : existente.username
+    return usuarios
+      .filter((u) => u.pessoaId !== pessoa.id || u.id === existente.id)
+      .map((u) =>
+        u.id === existente.id
+          ? {
+              ...u,
+              nome: pessoa.nome,
+              escolaId: pessoa.escolaId,
+              turma: pessoa.turma,
+              papel,
+              username,
+              senha: senhaInformada || u.senha,
+              email,
+            }
+          : u,
+      )
+  }
+  const username = usernameInformado
+    ? usernameUnico(usuarios, usernameInformado)
+    : sugestaoUsername(pessoa.nome, papel, usuarios)
+  return [
+    ...usuarios,
+    {
+      id: uid('u'),
+      nome: pessoa.nome,
+      username,
+      senha: senhaInformada || senhaGerada(),
+      papel,
+      escolaId: pessoa.escolaId,
+      pessoaId: pessoa.id,
+      turma: pessoa.turma,
+      email,
+    },
+  ]
+}
+
+function garantirTurma(turmas: TurmaCadastro[], pessoa: Pessoa): TurmaCadastro[] {
+  const nome = pessoa.turma.trim()
+  if (!nome) return turmas
+  if (turmas.some((t) => t.escolaId === pessoa.escolaId && t.nome.toLowerCase() === nome.toLowerCase())) return turmas
+  return [
+    ...turmas,
+    { id: uid('t'), nome, escolaId: pessoa.escolaId, faixaEtaria: pessoa.faixaEtaria },
+  ]
+}
+
+function bump(escola: Escola, status: Pessoa['status'], delta: number): Escola {
+  if (status === 'Ativo') return { ...escola, ativos: Math.max(0, escola.ativos + delta) }
+  return { ...escola, inativos: Math.max(0, escola.inativos + delta) }
+}
+
+type StoreValue = {
+  state: AppState
+  usuario: Usuario | null
+  login: (username: string, senha: string) => Promise<string | null>
+  logout: () => void
+  alterarSenha: (atual: string, nova: string) => Promise<string | null>
+  savePessoa: (pessoa: Pessoa, acesso?: AcessoApp | null) => void
+  removePessoa: (id: string) => void
+  saveEscola: (escola: Escola) => void
+  removeEscola: (id: string) => void
+  saveTurma: (turma: TurmaCadastro) => void
+  removeTurma: (id: string) => void
+  saveRelatorio: (relatorio: RelatorioDiario) => void
+  saveLancamento: (lancamento: LancamentoFinanceiro) => void
+  removeLancamento: (id: string) => void
+  setWhatsapp: (numero: string) => void
+  addSetor: (nome: string) => void
+  renameSetor: (id: string, nome: string) => void
+  removeSetor: (id: string) => void
+  addUsuarioAoSetor: (setorId: string, usuarioId: string) => void
+  removeUsuarioDoSetor: (setorId: string, usuarioId: string) => void
+  saveUsuario: (usuario: Usuario) => void
+  saveEvento: (evento: EventoCalendario) => void
+  removeEvento: (id: string) => void
+  saveLicao: (licao: Licao, data?: string) => void
+  removeLicao: (id: string) => void
+  saveAviso: (aviso: Aviso) => void
+  removeAviso: (id: string) => void
+  saveCertificado: (certificado: Certificado) => void
+  removeCertificado: (id: string) => void
+  saveModeloCertificado: (modelo: ModeloCertificado) => void
+  saveAvaliacao: (avaliacao: Avaliacao) => void
+  removeAvaliacao: (id: string) => void
+  responderAvaliacao: (avaliacaoId: string, pessoaId: string, alternativa: number) => void
+  saveCurso: (curso: CursoProfessor) => void
+  removeCurso: (id: string) => void
+  saveMeta: (meta: MetaEscola) => void
+  setRankingCompetitivo: (on: boolean) => void
+  concluirAulaCurso: (usuarioId: string, cursoId: string, aula: number) => void
+  resetDemo: () => void
+  escolasVisiveis: Escola[]
+  pessoasVisiveis: Pessoa[]
+  podeVerTudo: boolean
+  podeEditarLicoes: boolean
+  podePublicarAvisos: boolean
+  podeEmitirCertificado: boolean
+  ehProfessor: boolean
+  ehAluno: boolean
+  ehSecretario: boolean
+}
+
+const StoreContext = createContext<StoreValue | null>(null)
+
+export function StoreProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AppState>(loadState)
+
+  useEffect(() => {
+    function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>, substituirTudo: boolean) {
+      const raw = (remote.state as AppState | null) ?? createEmptyIgrejaState()
+      const hydrated = hidratarEstado({ ...raw, sessaoId: remote.usuarioId })
+      if (catalogoCresceu(raw, hydrated)) persist(hydrated)
+      if (substituirTudo) {
+        setState((prev) => {
+          const next = { ...hydrated, sessaoId: prev.sessaoId ?? remote.usuarioId }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+          return next
+        })
+        return
+      }
+      if (saveTimer) return
+      setState((prev) => {
+        const next = {
+          ...prev,
+          licoes: hydrated.licoes,
+          eventos: hydrated.eventos,
+          avisos: hydrated.avisos ?? prev.avisos,
+          certificados: hydrated.certificados ?? prev.certificados,
+          modeloCertificado: hydrated.modeloCertificado ?? prev.modeloCertificado,
+          licoesRemovidas: hydrated.licoesRemovidas ?? prev.licoesRemovidas,
+          cursos: Array.isArray(hydrated.cursos) ? hydrated.cursos : prev.cursos,
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        return next
+      })
+    }
+    if (apiToken()) {
+      void apiGetState()
+        .then((remote) => aplicarRemoto(remote, true))
+        .catch(() => {})
+    }
+    const t = window.setInterval(() => {
+      if (!apiToken() || saveTimer) return
+      void apiGetState()
+        .then((remote) => aplicarRemoto(remote, false))
+        .catch(() => {})
+    }, 25000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  const commit = useCallback((updater: (prev: AppState) => AppState) => {
+    setState((prev) => {
+      const next = updater(prev)
+      persist(next)
+      return next
+    })
+  }, [])
+
+  const usuario = useMemo(
+    () => state.usuarios.find((u) => u.id === state.sessaoId) ?? null,
+    [state.usuarios, state.sessaoId],
+  )
+
+  const podeVerTudo =
+    usuario?.papel === 'admin' ||
+    usuario?.papel === 'sede' ||
+    (usuario?.papel === 'superintendente' && !usuario.escolaId)
+  const ehProfessor = usuario?.papel === 'professor'
+  const ehAluno = usuario?.papel === 'aluno'
+  const ehSecretario = usuario?.papel === 'escola' || usuario?.papel === 'secretario'
+  const podeEditarLicoes =
+    usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
+  const podePublicarAvisos = podeEditarLicoes || ehProfessor
+  const podeEmitirCertificado = podePublicarAvisos
+
+  const escolasVisiveis = useMemo(() => {
+    if (!usuario) return []
+    if (podeVerTudo) return state.escolas
+    return state.escolas.filter((e) => e.id === usuario.escolaId)
+  }, [usuario, podeVerTudo, state.escolas])
+
+  const pessoasVisiveis = useMemo(() => {
+    const ids = new Set(escolasVisiveis.map((e) => e.id))
+    return state.pessoas.filter((p) => {
+      if (!ids.has(p.escolaId)) return false
+      if (ehProfessor && usuario?.turma) return p.turma === usuario.turma
+      if (ehAluno && usuario?.pessoaId) return p.id === usuario.pessoaId
+      return true
+    })
+  }, [state.pessoas, escolasVisiveis, ehProfessor, ehAluno, usuario])
+
+  const login = useCallback(async (username: string, senha: string) => {
+    try {
+      const res = await apiLogin(username, senha)
+      setApiToken(res.token)
+      const remote = await apiGetState()
+      let next = (remote.state as AppState | null) ?? createEmptyIgrejaState()
+      if (!Array.isArray(next.turmas)) next = { ...next, turmas: [] }
+      const u: Usuario = {
+        id: res.usuario.id,
+        nome: res.usuario.nome,
+        username: res.usuario.username,
+        senha,
+        papel: res.usuario.papel as Usuario['papel'],
+        escolaId: res.usuario.escolaId ?? undefined,
+        pessoaId: res.usuario.pessoaId ?? undefined,
+        turma: res.usuario.turma ?? undefined,
+      }
+      const idx = next.usuarios.findIndex(
+        (x) => x.id === u.id || x.username.toLowerCase() === u.username.toLowerCase() || (!!u.pessoaId && x.pessoaId === u.pessoaId),
+      )
+      const base = idx >= 0 ? next.usuarios[idx] : null
+      const usuarios = base
+        ? next.usuarios
+            .filter((x) => x.id === base.id || !u.pessoaId || x.pessoaId !== u.pessoaId)
+            .map((x) => (x.id === base.id ? { ...x, ...u } : x))
+        : [...next.usuarios.filter((x) => !u.pessoaId || x.pessoaId !== u.pessoaId), u]
+      next = hidratarEstado({ ...next, usuarios, sessaoId: u.id })
+      persist(next)
+      setState(next)
+      return null
+    } catch (err) {
+      const found = state.usuarios.find(
+        (x) => x.username.toLowerCase() === username.trim().toLowerCase() && x.senha === senha,
+      )
+      if (!found) return err instanceof Error ? err.message : 'Usuário ou senha inválidos.'
+      commit((prev) => ({ ...prev, sessaoId: found.id }))
+      return null
+    }
+  }, [state.usuarios, commit])
+
+  const logout = useCallback(() => {
+    void apiLogout()
+    commit((prev) => ({ ...prev, sessaoId: null }))
+  }, [commit])
+
+  const alterarSenha = useCallback(async (atual: string, nova: string) => {
+    if (nova.trim().length < 6) return 'A nova senha precisa ter pelo menos 6 caracteres.'
+    try {
+      await apiAlterarSenha(atual, nova)
+    } catch (err) {
+      if (apiToken()) return err instanceof Error ? err.message : 'Não foi possível alterar a senha.'
+      if (!usuario || usuario.senha !== atual) return 'Senha atual incorreta.'
+    }
+    if (!usuario) return 'Entre novamente para alterar a senha.'
+    commit((prev) => ({
+      ...prev,
+      usuarios: prev.usuarios.map((u) => (u.id === usuario.id ? { ...u, senha: nova } : u)),
+    }))
+    return null
+  }, [commit, usuario])
+
+  const savePessoa = useCallback((pessoa: Pessoa, acesso?: AcessoApp | null) => {
+    commit((prev) => {
+      const atual = prev.pessoas.find((p) => p.id === pessoa.id)
+      const pessoas = atual
+        ? prev.pessoas.map((p) => (p.id === pessoa.id ? pessoa : p))
+        : [...prev.pessoas, pessoa]
+      let escolas = prev.escolas
+      if (!atual) {
+        escolas = escolas.map((e) => (e.id === pessoa.escolaId ? bump(e, pessoa.status, 1) : e))
+      } else if (atual.escolaId !== pessoa.escolaId || atual.status !== pessoa.status) {
+        escolas = escolas.map((e) => {
+          let next = e
+          if (e.id === atual.escolaId) next = bump(next, atual.status, -1)
+          if (e.id === pessoa.escolaId) next = bump(next, pessoa.status, 1)
+          return next
+        })
+      }
+      let usuarios = prev.usuarios
+      const papel = papelDaPessoa(pessoa.tipo)
+      if (papel && pessoa.status === 'Ativo') {
+        usuarios = garantirLogin(usuarios, pessoa, papel, acesso)
+      }
+      const turmas = garantirTurma(prev.turmas ?? [], pessoa)
+      return { ...prev, pessoas, escolas, usuarios, turmas }
+    })
+  }, [commit])
+
+  const removePessoa = useCallback((id: string) => {
+    commit((prev) => {
+      const target = prev.pessoas.find((p) => p.id === id)
+      const pessoas = prev.pessoas.filter((p) => p.id !== id)
+      const escolas = target
+        ? prev.escolas.map((e) => (e.id === target.escolaId ? bump(e, target.status, -1) : e))
+        : prev.escolas
+      const usuarios = prev.usuarios.filter((u) => u.pessoaId !== id)
+      return { ...prev, pessoas, escolas, usuarios }
+    })
+  }, [commit])
+
+  const saveEscola = useCallback((escola: Escola) => {
+    commit((prev) => {
+      const exists = prev.escolas.some((e) => e.id === escola.id)
+      const escolas = exists
+        ? prev.escolas.map((e) => (e.id === escola.id ? escola : e))
+        : [...prev.escolas, escola]
+      return { ...prev, escolas }
+    })
+  }, [commit])
+
+  const removeEscola = useCallback((id: string) => {
+    commit((prev) => ({
+      ...prev,
+      escolas: prev.escolas.filter((e) => e.id !== id),
+      pessoas: prev.pessoas.filter((p) => p.escolaId !== id),
+      turmas: (prev.turmas ?? []).filter((t) => t.escolaId !== id),
+      relatorios: prev.relatorios.filter((r) => r.escolaId !== id),
+    }))
+  }, [commit])
+
+  const saveTurma = useCallback((turma: TurmaCadastro) => {
+    commit((prev) => {
+      const turmas = prev.turmas ?? []
+      const exists = turmas.some((t) => t.id === turma.id)
+      return { ...prev, turmas: exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma] }
+    })
+  }, [commit])
+
+  const removeTurma = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, turmas: (prev.turmas ?? []).filter((t) => t.id !== id) }))
+  }, [commit])
+
+  const saveRelatorio = useCallback((relatorio: RelatorioDiario) => {
+    commit((prev) => {
+      const exists = prev.relatorios.some((r) => r.id === relatorio.id)
+      const relatorios = exists
+        ? prev.relatorios.map((r) => (r.id === relatorio.id ? relatorio : r))
+        : [...prev.relatorios, relatorio]
+      const lancId = `oferta_${relatorio.id}`
+      let lancamentos = prev.lancamentos
+      if (relatorio.oferta > 0) {
+        const lanc: LancamentoFinanceiro = {
+          id: lancId,
+          escolaId: relatorio.escolaId,
+          data: relatorio.data,
+          tipo: 'oferta',
+          descricao: `Oferta EBD ${formatDateBR(relatorio.data)}`,
+          valor: relatorio.oferta,
+        }
+        lancamentos = lancamentos.some((l) => l.id === lancId)
+          ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
+          : [...lancamentos, lanc]
+      }
+      return { ...prev, relatorios, lancamentos }
+    })
+  }, [commit])
+
+  const saveLancamento = useCallback((lancamento: LancamentoFinanceiro) => {
+    commit((prev) => {
+      const exists = prev.lancamentos.some((l) => l.id === lancamento.id)
+      const lancamentos = exists
+        ? prev.lancamentos.map((l) => (l.id === lancamento.id ? lancamento : l))
+        : [...prev.lancamentos, lancamento]
+      return { ...prev, lancamentos }
+    })
+  }, [commit])
+
+  const removeLancamento = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, lancamentos: prev.lancamentos.filter((l) => l.id !== id) }))
+  }, [commit])
+
+  const setWhatsapp = useCallback((numero: string) => {
+    commit((prev) => ({ ...prev, whatsapp: numero }))
+  }, [commit])
+
+  const addSetor = useCallback((nome: string) => {
+    commit((prev) => ({
+      ...prev,
+      setores: [...prev.setores, { id: uid('setor'), nome, usuarioIds: [] }],
+    }))
+  }, [commit])
+
+  const renameSetor = useCallback((id: string, nome: string) => {
+    commit((prev) => ({
+      ...prev,
+      setores: prev.setores.map((s) => (s.id === id ? { ...s, nome } : s)),
+    }))
+  }, [commit])
+
+  const removeSetor = useCallback((id: string) => {
+    commit((prev) => ({
+      ...prev,
+      setores: prev.setores.filter((s) => s.id !== id),
+    }))
+  }, [commit])
+
+  const addUsuarioAoSetor = useCallback((setorId: string, usuarioId: string) => {
+    commit((prev) => ({
+      ...prev,
+      setores: prev.setores.map((s) =>
+        s.id === setorId && !s.usuarioIds.includes(usuarioId)
+          ? { ...s, usuarioIds: [...s.usuarioIds, usuarioId] }
+          : s,
+      ),
+    }))
+  }, [commit])
+
+  const removeUsuarioDoSetor = useCallback((setorId: string, usuarioId: string) => {
+    commit((prev) => ({
+      ...prev,
+      setores: prev.setores.map((s) =>
+        s.id === setorId ? { ...s, usuarioIds: s.usuarioIds.filter((id) => id !== usuarioId) } : s,
+      ),
+    }))
+  }, [commit])
+
+  const saveUsuario = useCallback((usuarioNovo: Usuario) => {
+    commit((prev) => {
+      const exists = prev.usuarios.some((u) => u.id === usuarioNovo.id)
+      const usuarios = exists
+        ? prev.usuarios.map((u) => (u.id === usuarioNovo.id ? usuarioNovo : u))
+        : [...prev.usuarios, usuarioNovo]
+      return { ...prev, usuarios }
+    })
+  }, [commit])
+
+  const saveEvento = useCallback((evento: EventoCalendario) => {
+    commit((prev) => {
+      const eventos = prev.eventos.some((e) => e.id === evento.id)
+        ? prev.eventos.map((e) => (e.id === evento.id ? evento : e))
+        : [...prev.eventos, evento]
+      return { ...prev, eventos }
+    })
+  }, [commit])
+
+  const removeEvento = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, eventos: prev.eventos.filter((e) => e.id !== id) }))
+  }, [commit])
+
+  const saveLicao = useCallback((licao: Licao, data?: string) => {
+    commit((prev) => {
+      const licoes = prev.licoes.some((l) => l.id === licao.id)
+        ? prev.licoes.map((l) => (l.id === licao.id ? licao : l))
+        : [...prev.licoes, licao]
+      const licoesRemovidas = (prev.licoesRemovidas ?? []).filter((id) => id !== licao.id)
+      let eventos = prev.eventos.map((e) =>
+        e.licaoId === licao.id
+          ? { ...e, titulo: licao.tema, descricao: `${licao.trimestre}º trimestre ${licao.ano}` }
+          : e,
+      )
+      if (data) {
+        const existente = eventos.find((e) => e.licaoId === licao.id)
+        if (existente) {
+          eventos = eventos.map((e) => (e.id === existente.id ? { ...e, data, titulo: licao.tema } : e))
+        } else {
+          eventos = [
+            ...eventos,
+            {
+              id: `ev-lic-${licao.id}-${data}`,
+              data,
+              tipo: 'licao' as const,
+              titulo: licao.tema,
+              descricao: `${licao.trimestre}º trimestre ${licao.ano}`,
+              licaoId: licao.id,
+            },
+          ]
+        }
+      }
+      return { ...prev, licoes, eventos, licoesRemovidas }
+    })
+  }, [commit])
+
+  const removeLicao = useCallback((id: string) => {
+    commit((prev) => ({
+      ...prev,
+      licoes: prev.licoes.filter((l) => l.id !== id),
+      eventos: prev.eventos.filter((e) => e.licaoId !== id),
+      licoesRemovidas: (prev.licoesRemovidas ?? []).includes(id)
+        ? prev.licoesRemovidas
+        : [...(prev.licoesRemovidas ?? []), id],
+    }))
+  }, [commit])
+
+  const saveAviso = useCallback((aviso: Aviso) => {
+    commit((prev) => {
+      const avisos = prev.avisos.some((a) => a.id === aviso.id)
+        ? prev.avisos.map((a) => (a.id === aviso.id ? aviso : a))
+        : [aviso, ...prev.avisos]
+      return { ...prev, avisos }
+    })
+  }, [commit])
+
+  const removeAviso = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, avisos: prev.avisos.filter((a) => a.id !== id) }))
+  }, [commit])
+
+  const saveCertificado = useCallback((certificado: Certificado) => {
+    commit((prev) => {
+      const certificados = prev.certificados.some((c) => c.id === certificado.id)
+        ? prev.certificados.map((c) => (c.id === certificado.id ? certificado : c))
+        : [...prev.certificados, certificado]
+      return { ...prev, certificados }
+    })
+  }, [commit])
+
+  const removeCertificado = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, certificados: prev.certificados.filter((c) => c.id !== id) }))
+  }, [commit])
+
+  const saveModeloCertificado = useCallback((modelo: ModeloCertificado) => {
+    commit((prev) => ({ ...prev, modeloCertificado: modelo }))
+  }, [commit])
+
+  const saveAvaliacao = useCallback((avaliacao: Avaliacao) => {
+    commit((prev) => {
+      const avaliacoes = prev.avaliacoes.some((a) => a.id === avaliacao.id)
+        ? prev.avaliacoes.map((a) => (a.id === avaliacao.id ? avaliacao : a))
+        : [...prev.avaliacoes, avaliacao]
+      return { ...prev, avaliacoes }
+    })
+  }, [commit])
+
+  const removeAvaliacao = useCallback((id: string) => {
+    commit((prev) => ({ ...prev, avaliacoes: prev.avaliacoes.filter((a) => a.id !== id) }))
+  }, [commit])
+
+  const responderAvaliacao = useCallback((avaliacaoId: string, pessoaId: string, alternativa: number) => {
+    commit((prev) => ({
+      ...prev,
+      avaliacoes: prev.avaliacoes.map((a) => {
+        if (a.id !== avaliacaoId) return a
+        const respostas = a.respostas.some((r) => r.pessoaId === pessoaId)
+          ? a.respostas.map((r) => (r.pessoaId === pessoaId ? { pessoaId, alternativa } : r))
+          : [...a.respostas, { pessoaId, alternativa }]
+        return { ...a, respostas }
+      }),
+    }))
+  }, [commit])
+
+  const saveMeta = useCallback((meta: MetaEscola) => {
+    commit((prev) => {
+      const metas = prev.metas.some((m) => m.escolaId === meta.escolaId)
+        ? prev.metas.map((m) => (m.escolaId === meta.escolaId ? meta : m))
+        : [...prev.metas, meta]
+      return { ...prev, metas }
+    })
+  }, [commit])
+
+  const setRankingCompetitivo = useCallback((on: boolean) => {
+    commit((prev) => ({ ...prev, rankingCompetitivo: on }))
+  }, [commit])
+
+  const concluirAulaCurso = useCallback((usuarioId: string, cursoId: string, aula: number) => {
+    commit((prev) => {
+      const atual = prev.progressos.find((p) => p.usuarioId === usuarioId && p.cursoId === cursoId)
+      if (!atual) {
+        return { ...prev, progressos: [...prev.progressos, { usuarioId, cursoId, concluidas: [aula] }] }
+      }
+      const concluidas = atual.concluidas.includes(aula) ? atual.concluidas : [...atual.concluidas, aula]
+      return {
+        ...prev,
+        progressos: prev.progressos.map((p) => (p === atual ? { ...p, concluidas } : p)),
+      }
+    })
+  }, [commit])
+
+  const saveCurso = useCallback((curso: CursoProfessor) => {
+    commit((prev) => {
+      const cursos = prev.cursos.some((c) => c.id === curso.id)
+        ? prev.cursos.map((c) => (c.id === curso.id ? curso : c))
+        : [...prev.cursos, curso]
+      return { ...prev, cursos }
+    })
+  }, [commit])
+
+  const removeCurso = useCallback((id: string) => {
+    commit((prev) => ({
+      ...prev,
+      cursos: prev.cursos.filter((c) => c.id !== id),
+      progressos: prev.progressos.filter((p) => p.cursoId !== id),
+    }))
+  }, [commit])
+
+  const resetDemo = useCallback(() => {
+    const fresh = createSeedState()
+    persist(fresh)
+    setState(fresh)
+  }, [])
+
+  const value = useMemo<StoreValue>(
+    () => ({
+      state,
+      usuario,
+      login,
+      logout,
+      alterarSenha,
+      savePessoa,
+      removePessoa,
+      saveEscola,
+      removeEscola,
+      saveTurma,
+      removeTurma,
+      saveRelatorio,
+      saveLancamento,
+      removeLancamento,
+      setWhatsapp,
+      addSetor,
+      renameSetor,
+      removeSetor,
+      addUsuarioAoSetor,
+      removeUsuarioDoSetor,
+      saveUsuario,
+      saveEvento,
+      removeEvento,
+      saveLicao,
+      removeLicao,
+      saveAviso,
+      removeAviso,
+      saveCertificado,
+      removeCertificado,
+      saveModeloCertificado,
+      saveAvaliacao,
+      removeAvaliacao,
+      responderAvaliacao,
+      saveMeta,
+      setRankingCompetitivo,
+      concluirAulaCurso,
+      saveCurso,
+      removeCurso,
+      resetDemo,
+      escolasVisiveis,
+      pessoasVisiveis,
+      podeVerTudo,
+      podeEditarLicoes,
+      podePublicarAvisos,
+      podeEmitirCertificado,
+      ehProfessor,
+      ehAluno,
+      ehSecretario,
+    }),
+    [
+      state,
+      usuario,
+      login,
+      logout,
+      alterarSenha,
+      savePessoa,
+      removePessoa,
+      saveEscola,
+      removeEscola,
+      saveTurma,
+      removeTurma,
+      saveRelatorio,
+      saveLancamento,
+      removeLancamento,
+      setWhatsapp,
+      addSetor,
+      renameSetor,
+      removeSetor,
+      addUsuarioAoSetor,
+      removeUsuarioDoSetor,
+      saveUsuario,
+      saveEvento,
+      removeEvento,
+      saveLicao,
+      removeLicao,
+      saveAviso,
+      removeAviso,
+      saveCertificado,
+      removeCertificado,
+      saveModeloCertificado,
+      saveAvaliacao,
+      removeAvaliacao,
+      responderAvaliacao,
+      saveMeta,
+      setRankingCompetitivo,
+      concluirAulaCurso,
+      saveCurso,
+      removeCurso,
+      resetDemo,
+      escolasVisiveis,
+      pessoasVisiveis,
+      podeVerTudo,
+      podeEditarLicoes,
+      podePublicarAvisos,
+      podeEmitirCertificado,
+      ehProfessor,
+      ehAluno,
+      ehSecretario,
+    ],
+  )
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+}
+
+export function useStore(): StoreValue {
+  const ctx = useContext(StoreContext)
+  if (!ctx) throw new Error('useStore fora do StoreProvider')
+  return ctx
+}
+
+export type { SetorAcesso }

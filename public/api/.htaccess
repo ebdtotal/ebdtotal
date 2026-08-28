@@ -1,0 +1,10 @@
+<IfModule mod_authz_core.c>
+  <FilesMatch "\.(sqlite|sqlite3|db)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <FilesMatch "\.(sqlite|sqlite3|db)$">
+    Deny from all
+  </FilesMatch>
+</IfModule>
