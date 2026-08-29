@@ -417,6 +417,35 @@ function sync_cadastros(PDO $pdo, string $tenantId, array $state): void {
   }
 }
 
+function mesclar_usuarios_banco(PDO $pdo, string $tenantId, array $state): array {
+  $st = $pdo->prepare('SELECT id, nome, username, papel, escola_id, pessoa_id, turma, email FROM users WHERE tenant_id = ?');
+  $st->execute([$tenantId]);
+  $map = [];
+  foreach ($state['usuarios'] ?? [] as $u) {
+    $key = strtolower(trim((string)($u['username'] ?? '')));
+    if ($key === '') continue;
+    $map[$key] = $u;
+  }
+  foreach ($st->fetchAll() as $row) {
+    $key = strtolower(trim((string)$row['username']));
+    if ($key === '') continue;
+    $atual = $map[$key] ?? [];
+    $map[$key] = [
+      'id' => $atual['id'] ?? $row['id'],
+      'nome' => $atual['nome'] ?? $row['nome'],
+      'username' => $row['username'],
+      'senha' => $atual['senha'] ?? '',
+      'papel' => $row['papel'] ?: ($atual['papel'] ?? 'sede'),
+      'escolaId' => ($row['escola_id'] ?? '') !== '' ? $row['escola_id'] : ($atual['escolaId'] ?? null),
+      'pessoaId' => ($row['pessoa_id'] ?? '') !== '' ? $row['pessoa_id'] : ($atual['pessoaId'] ?? null),
+      'turma' => ($row['turma'] ?? '') !== '' ? $row['turma'] : ($atual['turma'] ?? null),
+      'email' => $row['email'] ?: ($atual['email'] ?? ''),
+    ];
+  }
+  $state['usuarios'] = array_values($map);
+  return $state;
+}
+
 function sync_users(PDO $pdo, string $tenantId, array $state): void {
   $emailsPessoa = [];
   foreach ($state['pessoas'] ?? [] as $p) {

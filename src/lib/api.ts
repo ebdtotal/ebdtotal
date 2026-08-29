@@ -8,12 +8,26 @@ export function apiRoot(): string {
 }
 
 export function apiToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY)
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    return sessionStorage.getItem(TOKEN_KEY)
+  }
 }
 
 export function setApiToken(token: string | null) {
-  if (token) sessionStorage.setItem(TOKEN_KEY, token)
-  else sessionStorage.removeItem(TOKEN_KEY)
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token)
+      sessionStorage.setItem(TOKEN_KEY, token)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+      sessionStorage.removeItem(TOKEN_KEY)
+    }
+  } catch {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token)
+    else sessionStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {

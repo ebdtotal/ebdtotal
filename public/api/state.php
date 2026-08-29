@@ -10,16 +10,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $st = $pdo->prepare('SELECT json FROM app_state WHERE tenant_id = ?');
   $st->execute([$tenantId]);
   $row = $st->fetch();
-  $state = $row ? json_decode((string)$row['json'], true) : null;
-  if (is_array($state)) {
-    $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
-    $state = reconciliar_acessos($state);
-    if (json_encode($state, JSON_UNESCAPED_UNICODE) !== $antes) {
-      $now = gmdate('c');
+  $state = $row ? json_decode((string)$row['json'], true) : [];
+  if (!is_array($state)) $state = [];
+  $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
+  $state = reconciliar_acessos($state);
+  $state = mesclar_usuarios_banco($pdo, $tenantId, $state);
+  if (json_encode($state, JSON_UNESCAPED_UNICODE) !== $antes) {
+    $now = gmdate('c');
+    $chk = $pdo->prepare('SELECT tenant_id FROM app_state WHERE tenant_id = ?');
+    $chk->execute([$tenantId]);
+    $json = json_encode($state, JSON_UNESCAPED_UNICODE);
+    if ($chk->fetch()) {
       $pdo->prepare('UPDATE app_state SET json = ?, updated_at = ? WHERE tenant_id = ?')
-        ->execute([json_encode($state, JSON_UNESCAPED_UNICODE), $now, $tenantId]);
-      sync_users($pdo, $tenantId, $state);
+        ->execute([$json, $now, $tenantId]);
+    } else {
+      $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
+        ->execute([$tenantId, $json, $now]);
     }
+    sync_users($pdo, $tenantId, $state);
   }
   json_ok(['state' => $state, 'usuarioId' => $sess['user_id']]);
 }

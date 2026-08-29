@@ -17,7 +17,7 @@ import {
   apiToken,
   setApiToken,
 } from './api'
-import { ehAppNativo } from './native'
+import { ehAppNativo, EVENTO_SYNC } from './native'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
   AppState,
@@ -74,6 +74,7 @@ function loadState(): AppState {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let savePending = 0
 
 function cacheLocal(state: AppState) {
   try {
@@ -83,13 +84,24 @@ function cacheLocal(state: AppState) {
   }
 }
 
-function persist(state: AppState) {
+function persist(state: AppState, imediato = false) {
   cacheLocal(state)
   if (!apiToken()) return
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    void apiSaveState(state).catch(() => {})
-  }, 600)
+  const enviar = () => {
+    saveTimer = null
+    savePending += 1
+    void apiSaveState(state)
+      .catch(() => {})
+      .finally(() => {
+        savePending = Math.max(0, savePending - 1)
+      })
+  }
+  if (imediato) {
+    enviar()
+    return
+  }
+  saveTimer = setTimeout(enviar, 600)
 }
 
 export type AcessoApp = { username: string; senha: string; email?: string }
@@ -242,55 +254,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(loadState)
 
   useEffect(() => {
-    function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>, substituirTudo: boolean) {
+    function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>) {
       const raw = {
         ...createEmptyIgrejaState(),
         ...((remote.state as AppState | null) ?? {}),
       }
       const hydrated = hidratarEstado({ ...raw, sessaoId: remote.usuarioId })
-      if (catalogoCresceu(raw, hydrated)) persist(hydrated)
-      if (substituirTudo) {
-        setState((prev) => {
-          const next = { ...hydrated, sessaoId: prev.sessaoId ?? remote.usuarioId }
-          cacheLocal(next)
-          return next
-        })
-        return
-      }
-      if (saveTimer) return
+      if (catalogoCresceu(raw, hydrated)) persist(hydrated, true)
       setState((prev) => {
-        const next = {
-          ...prev,
-          licoes: hydrated.licoes,
-          eventos: hydrated.eventos,
-          avisos: hydrated.avisos ?? prev.avisos,
-          certificados: hydrated.certificados ?? prev.certificados,
-          modeloCertificado: hydrated.modeloCertificado ?? prev.modeloCertificado,
-          licoesRemovidas: hydrated.licoesRemovidas ?? prev.licoesRemovidas,
-          cursos: Array.isArray(hydrated.cursos) ? hydrated.cursos : prev.cursos,
-        }
+        const next = { ...hydrated, sessaoId: prev.sessaoId ?? remote.usuarioId }
         cacheLocal(next)
         return next
       })
     }
-    if (apiToken()) {
-      void apiGetState()
-        .then((remote) => aplicarRemoto(remote, true))
-        .catch(() => {})
+    function puxar() {
+      if (!apiToken() || saveTimer || savePending) return
+      void apiGetState().then(aplicarRemoto).catch(() => {})
     }
-    const t = window.setInterval(() => {
-      if (!apiToken() || saveTimer) return
-      void apiGetState()
-        .then((remote) => aplicarRemoto(remote, false))
-        .catch(() => {})
-    }, 25000)
-    return () => window.clearInterval(t)
+    function aoVisivel() {
+      if (document.visibilityState === 'visible') puxar()
+    }
+    puxar()
+    const t = window.setInterval(puxar, 10000)
+    window.addEventListener(EVENTO_SYNC, puxar)
+    document.addEventListener('visibilitychange', aoVisivel)
+    return () => {
+      window.clearInterval(t)
+      window.removeEventListener(EVENTO_SYNC, puxar)
+      document.removeEventListener('visibilitychange', aoVisivel)
+    }
   }, [])
 
-  const commit = useCallback((updater: (prev: AppState) => AppState) => {
+  const commit = useCallback((updater: (prev: AppState) => AppState, imediato = false) => {
     setState((prev) => {
       const next = updater(prev)
-      persist(next)
+      persist(next, imediato)
       return next
     })
   }, [])
@@ -419,7 +417,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const turmas = garantirTurma(prev.turmas ?? [], pessoa)
       return { ...prev, pessoas, escolas, usuarios, turmas }
-    })
+    }, true)
   }, [commit])
 
   const removePessoa = useCallback((id: string) => {
@@ -431,7 +429,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : prev.escolas
       const usuarios = prev.usuarios.filter((u) => u.pessoaId !== id)
       return { ...prev, pessoas, escolas, usuarios }
-    })
+    }, true)
   }, [commit])
 
   const saveEscola = useCallback((escola: Escola) => {
@@ -557,7 +555,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ? prev.usuarios.map((u) => (u.id === usuarioNovo.id ? usuarioNovo : u))
         : [...prev.usuarios, usuarioNovo]
       return { ...prev, usuarios }
-    })
+    }, true)
   }, [commit])
 
   const saveEvento = useCallback((evento: EventoCalendario) => {
