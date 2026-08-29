@@ -151,3 +151,40 @@ export async function apiClientes() {
 export async function apiStatusIgreja(id: string, status: string) {
   return req<{ ok: boolean }>('clientes.php', { method: 'PATCH', body: JSON.stringify({ id, status }) })
 }
+
+export type AtividadeRegistro = {
+  id: string
+  tenant_id: string
+  user_id: string
+  username: string
+  nome: string
+  papel: string
+  acao: string
+  detalhe: string
+  ip: string
+  created_at: string
+  igreja?: string
+}
+
+export type AtividadeLogin = {
+  id: string
+  username: string
+  nome: string
+  papel: string
+  tenant_id: string
+  igreja?: string
+  ultima_em?: string | null
+  ultima_acao?: string | null
+  ultima_detalhe?: string | null
+}
+
+export async function apiAtividades(params?: { q?: string; papel?: string; username?: string }) {
+  const sp = new URLSearchParams()
+  if (params?.q) sp.set('q', params.q)
+  if (params?.papel) sp.set('papel', params.papel)
+  if (params?.username) sp.set('username', params.username)
+  const qs = sp.toString()
+  return req<{ atividades: AtividadeRegistro[]; logins: AtividadeLogin[]; master: boolean }>(
+    `atividades.php${qs ? `?${qs}` : ''}`,
+  )
+}

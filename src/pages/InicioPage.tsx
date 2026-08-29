@@ -65,8 +65,11 @@ export function InicioPage() {
 }
 
 function LicaoDaSemana() {
-  const { state } = useStore()
-  const licao = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()))
+  const { state, usuario } = useStore()
+  const licao = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()), {
+    turma: usuario?.turma,
+    escolaId: usuario?.escolaId,
+  })
   if (!licao) return null
   return (
     <Link to={`/licao?id=${licao.id}`} className="mb-5 block rounded-xl border-2 border-gold bg-white p-5 shadow-md">

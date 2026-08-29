@@ -75,12 +75,18 @@ function loadState(): AppState {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let savePending = 0
+let saveRetries = 0
 let lastRemoteAt = ''
+let latestToSave: AppState | null = null
 let canalSync: BroadcastChannel | null = null
 try {
   canalSync = new BroadcastChannel('ebd-sync')
 } catch {
   canalSync = null
+}
+
+function agoraIso() {
+  return new Date().toISOString()
 }
 
 function cacheLocal(state: AppState) {
@@ -92,14 +98,18 @@ function cacheLocal(state: AppState) {
 }
 
 function persist(state: AppState, imediato = false) {
+  latestToSave = state
   cacheLocal(state)
   if (!apiToken()) return
   if (saveTimer) clearTimeout(saveTimer)
   const enviar = () => {
     saveTimer = null
+    const payload = latestToSave
+    if (!payload) return
     savePending += 1
-    void apiSaveState(state)
+    void apiSaveState(payload)
       .then((res) => {
+        saveRetries = 0
         if (res.updatedAt) lastRemoteAt = res.updatedAt
         try {
           canalSync?.postMessage('saved')
@@ -107,10 +117,16 @@ function persist(state: AppState, imediato = false) {
           /* */
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        saveRetries += 1
+        const retry = latestToSave
+        if (saveRetries <= 3 && retry && apiToken()) {
+          window.setTimeout(() => persist(retry, true), 1500)
+        }
+      })
       .finally(() => {
         savePending = Math.max(0, savePending - 1)
-        if (savePending === 0) window.dispatchEvent(new Event(EVENTO_SYNC))
+        if (savePending === 0 && saveRetries === 0) window.dispatchEvent(new Event(EVENTO_SYNC))
       })
   }
   if (imediato) {
@@ -213,6 +229,35 @@ function bump(escola: Escola, status: Pessoa['status'], delta: number): Escola {
   return { ...escola, inativos: Math.max(0, escola.inativos + delta) }
 }
 
+function aplicarPessoaNoEstado(prev: AppState, pessoa: Pessoa, acesso?: AcessoApp | null): AppState {
+  const agora = agoraIso()
+  const gravar: Pessoa = { ...pessoa, updatedAt: agora }
+  const atual = prev.pessoas.find((p) => p.id === gravar.id)
+  const pessoas = atual
+    ? prev.pessoas.map((p) => (p.id === gravar.id ? gravar : p))
+    : [...prev.pessoas, gravar]
+  let escolas = prev.escolas
+  if (!atual) {
+    escolas = escolas.map((e) => (e.id === gravar.escolaId ? bump(e, gravar.status, 1) : e))
+  } else if (atual.escolaId !== gravar.escolaId || atual.status !== gravar.status) {
+    escolas = escolas.map((e) => {
+      let next = e
+      if (e.id === atual.escolaId) next = bump(next, atual.status, -1)
+      if (e.id === gravar.escolaId) next = bump(next, gravar.status, 1)
+      return next
+    })
+  }
+  let usuarios = prev.usuarios
+  const papel = papelDaPessoa(gravar.tipo)
+  if (papel && gravar.status === 'Ativo') {
+    usuarios = garantirLogin(usuarios, gravar, papel, acesso).map((u) =>
+      u.pessoaId === gravar.id ? { ...u, updatedAt: agora } : u,
+    )
+  }
+  const turmas = garantirTurma(prev.turmas ?? [], gravar)
+  return { ...prev, pessoas, escolas, usuarios, turmas }
+}
+
 type StoreValue = {
   state: AppState
   usuario: Usuario | null
@@ -220,10 +265,13 @@ type StoreValue = {
   logout: () => void
   alterarSenha: (atual: string, nova: string) => Promise<string | null>
   savePessoa: (pessoa: Pessoa, acesso?: AcessoApp | null) => void
+  importarPessoas: (itens: { pessoa: Pessoa; acesso?: AcessoApp | null }[]) => void
   removePessoa: (id: string) => void
   saveEscola: (escola: Escola) => void
+  importarEscolas: (escolas: Escola[]) => void
   removeEscola: (id: string) => void
   saveTurma: (turma: TurmaCadastro) => void
+  importarTurmas: (turmas: TurmaCadastro[]) => void
   removeTurma: (id: string) => void
   saveRelatorio: (relatorio: RelatorioDiario) => void
   saveLancamento: (lancamento: LancamentoFinanceiro) => void
@@ -257,6 +305,7 @@ type StoreValue = {
   pessoasVisiveis: Pessoa[]
   podeVerTudo: boolean
   podeEditarLicoes: boolean
+  podeEditarConteudoLicao: boolean
   podePublicarAvisos: boolean
   podeEmitirCertificado: boolean
   ehProfessor: boolean
@@ -330,6 +379,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ehSecretario = usuario?.papel === 'escola' || usuario?.papel === 'secretario'
   const podeEditarLicoes =
     usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
+  const podeEditarConteudoLicao = podeEditarLicoes || ehProfessor
   const podePublicarAvisos = podeEditarLicoes || ehProfessor
   const podeEmitirCertificado = podePublicarAvisos
 
@@ -417,30 +467,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit, usuario])
 
   const savePessoa = useCallback((pessoa: Pessoa, acesso?: AcessoApp | null) => {
-    commit((prev) => {
-      const atual = prev.pessoas.find((p) => p.id === pessoa.id)
-      const pessoas = atual
-        ? prev.pessoas.map((p) => (p.id === pessoa.id ? pessoa : p))
-        : [...prev.pessoas, pessoa]
-      let escolas = prev.escolas
-      if (!atual) {
-        escolas = escolas.map((e) => (e.id === pessoa.escolaId ? bump(e, pessoa.status, 1) : e))
-      } else if (atual.escolaId !== pessoa.escolaId || atual.status !== pessoa.status) {
-        escolas = escolas.map((e) => {
-          let next = e
-          if (e.id === atual.escolaId) next = bump(next, atual.status, -1)
-          if (e.id === pessoa.escolaId) next = bump(next, pessoa.status, 1)
-          return next
-        })
-      }
-      let usuarios = prev.usuarios
-      const papel = papelDaPessoa(pessoa.tipo)
-      if (papel && pessoa.status === 'Ativo') {
-        usuarios = garantirLogin(usuarios, pessoa, papel, acesso)
-      }
-      const turmas = garantirTurma(prev.turmas ?? [], pessoa)
-      return { ...prev, pessoas, escolas, usuarios, turmas }
-    }, true)
+    commit((prev) => aplicarPessoaNoEstado(prev, pessoa, acesso), true)
+  }, [commit])
+
+  const importarPessoas = useCallback((itens: { pessoa: Pessoa; acesso?: AcessoApp | null }[]) => {
+    if (!itens.length) return
+    commit((prev) => itens.reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev), true)
   }, [commit])
 
   const removePessoa = useCallback((id: string) => {
@@ -465,6 +497,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [commit])
 
+  const importarEscolas = useCallback((novas: Escola[]) => {
+    if (!novas.length) return
+    commit((prev) => {
+      let escolas = prev.escolas
+      for (const escola of novas) {
+        const exists = escolas.some((e) => e.id === escola.id)
+        escolas = exists ? escolas.map((e) => (e.id === escola.id ? escola : e)) : [...escolas, escola]
+      }
+      return { ...prev, escolas }
+    }, true)
+  }, [commit])
+
   const removeEscola = useCallback((id: string) => {
     commit((prev) => ({
       ...prev,
@@ -481,6 +525,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const exists = turmas.some((t) => t.id === turma.id)
       return { ...prev, turmas: exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma] }
     })
+  }, [commit])
+
+  const importarTurmas = useCallback((novas: TurmaCadastro[]) => {
+    if (!novas.length) return
+    commit((prev) => {
+      let turmas = prev.turmas ?? []
+      for (const turma of novas) {
+        const exists = turmas.some((t) => t.id === turma.id)
+        turmas = exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma]
+      }
+      return { ...prev, turmas }
+    }, true)
   }, [commit])
 
   const removeTurma = useCallback((id: string) => {
@@ -600,36 +656,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const saveLicao = useCallback((licao: Licao, data?: string) => {
+    const gravar: Licao = { ...licao, updatedAt: agoraIso() }
     commit((prev) => {
-      const licoes = prev.licoes.some((l) => l.id === licao.id)
-        ? prev.licoes.map((l) => (l.id === licao.id ? licao : l))
-        : [...prev.licoes, licao]
-      const licoesRemovidas = (prev.licoesRemovidas ?? []).filter((id) => id !== licao.id)
+      const licoes = prev.licoes.some((l) => l.id === gravar.id)
+        ? prev.licoes.map((l) => (l.id === gravar.id ? gravar : l))
+        : [...prev.licoes, gravar]
+      const licoesRemovidas = (prev.licoesRemovidas ?? []).filter((id) => id !== gravar.id)
       let eventos = prev.eventos.map((e) =>
-        e.licaoId === licao.id
-          ? { ...e, titulo: licao.tema, descricao: `${licao.trimestre}º trimestre ${licao.ano}` }
+        e.licaoId === gravar.id
+          ? { ...e, titulo: gravar.tema, descricao: `${gravar.trimestre}º trimestre ${gravar.ano}` }
           : e,
       )
-      if (data) {
-        const existente = eventos.find((e) => e.licaoId === licao.id)
+      if (data && !(gravar.turma ?? '').trim()) {
+        const existente = eventos.find((e) => e.licaoId === gravar.id)
         if (existente) {
-          eventos = eventos.map((e) => (e.id === existente.id ? { ...e, data, titulo: licao.tema } : e))
+          eventos = eventos.map((e) => (e.id === existente.id ? { ...e, data, titulo: gravar.tema } : e))
         } else {
           eventos = [
             ...eventos,
             {
-              id: `ev-lic-${licao.id}-${data}`,
+              id: `ev-lic-${gravar.id}-${data}`,
               data,
               tipo: 'licao' as const,
-              titulo: licao.tema,
-              descricao: `${licao.trimestre}º trimestre ${licao.ano}`,
-              licaoId: licao.id,
+              titulo: gravar.tema,
+              descricao: `${gravar.trimestre}º trimestre ${gravar.ano}`,
+              licaoId: gravar.id,
             },
           ]
         }
       }
       return { ...prev, licoes, eventos, licoesRemovidas }
-    })
+    }, true)
   }, [commit])
 
   const removeLicao = useCallback((id: string) => {
@@ -757,10 +814,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       logout,
       alterarSenha,
       savePessoa,
+      importarPessoas,
       removePessoa,
       saveEscola,
+      importarEscolas,
       removeEscola,
       saveTurma,
+      importarTurmas,
       removeTurma,
       saveRelatorio,
       saveLancamento,
@@ -794,6 +854,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pessoasVisiveis,
       podeVerTudo,
       podeEditarLicoes,
+      podeEditarConteudoLicao,
       podePublicarAvisos,
       podeEmitirCertificado,
       ehProfessor,
@@ -807,10 +868,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       logout,
       alterarSenha,
       savePessoa,
+      importarPessoas,
       removePessoa,
       saveEscola,
+      importarEscolas,
       removeEscola,
       saveTurma,
+      importarTurmas,
       removeTurma,
       saveRelatorio,
       saveLancamento,
@@ -844,6 +908,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pessoasVisiveis,
       podeVerTudo,
       podeEditarLicoes,
+      podeEditarConteudoLicao,
       podePublicarAvisos,
       podeEmitirCertificado,
       ehProfessor,

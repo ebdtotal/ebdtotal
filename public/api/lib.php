@@ -147,6 +147,28 @@ function migrate(PDO $pdo): void {
     faixa TEXT DEFAULT '',
     PRIMARY KEY (tenant_id, id)
   )");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS atividades (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    user_id TEXT DEFAULT '',
+    username TEXT DEFAULT '',
+    nome TEXT DEFAULT '',
+    papel TEXT DEFAULT '',
+    acao TEXT NOT NULL,
+    detalhe TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+  )");
+  try {
+    $pdo->exec('CREATE INDEX idx_atividades_tenant_created ON atividades (tenant_id, created_at)');
+  } catch (Throwable $e) {
+    /* índice já existe */
+  }
+  try {
+    $pdo->exec('CREATE INDEX idx_atividades_user ON atividades (user_id, created_at)');
+  } catch (Throwable $e) {
+    /* índice já existe */
+  }
   ensure_column($pdo, 'users', 'email', 'email TEXT DEFAULT \'\'');
   ensure_column($pdo, 'pessoas_idx', 'email', 'email TEXT DEFAULT \'\'');
 
@@ -176,6 +198,154 @@ function auth(): array {
 
 function uid(string $p = 'id'): string {
   return $p . '_' . bin2hex(random_bytes(6));
+}
+
+function ip_cliente(): string {
+  $xff = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+  if ($xff !== '') return trim(explode(',', $xff)[0]);
+  return (string)($_SERVER['REMOTE_ADDR'] ?? '');
+}
+
+function autor_de(array $row): array {
+  return [
+    'id' => (string)($row['id'] ?? $row['user_id'] ?? ''),
+    'username' => (string)($row['username'] ?? ''),
+    'nome' => (string)($row['nome'] ?? ''),
+    'papel' => (string)($row['papel'] ?? ''),
+  ];
+}
+
+function registrar_atividade(PDO $pdo, string $tenantId, array $autor, string $acao, string $detalhe = ''): void {
+  if ($tenantId === '' || $acao === '') return;
+  try {
+    $detalhe = trim($detalhe);
+    if (strlen($detalhe) > 240) $detalhe = substr($detalhe, 0, 237) . '...';
+    $pdo->prepare('INSERT INTO atividades (id,tenant_id,user_id,username,nome,papel,acao,detalhe,ip,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      ->execute([
+        uid('at'),
+        $tenantId,
+        (string)($autor['id'] ?? $autor['user_id'] ?? ''),
+        (string)($autor['username'] ?? ''),
+        (string)($autor['nome'] ?? ''),
+        (string)($autor['papel'] ?? ''),
+        $acao,
+        $detalhe,
+        ip_cliente(),
+        gmdate('c'),
+      ]);
+    static $limpeza = 0;
+    $limpeza += 1;
+    if ($limpeza === 1 || $limpeza % 30 === 0) {
+      $pdo->prepare('DELETE FROM atividades WHERE created_at < ?')->execute([gmdate('c', time() - 90 * 86400)]);
+    }
+  } catch (Throwable $e) {
+    /* o registro de atividades não pode impedir o login nem o save */
+  }
+}
+
+function mapa_por_id(array $lista): array {
+  $map = [];
+  foreach ($lista as $item) {
+    if (!is_array($item) || empty($item['id'])) continue;
+    $map[(string)$item['id']] = $item;
+  }
+  return $map;
+}
+
+function nome_escola_state(array $state, string $id): string {
+  foreach ($state['escolas'] ?? [] as $e) {
+    if (!is_array($e)) continue;
+    if ((string)($e['id'] ?? '') === $id) return (string)($e['nome'] ?? '');
+  }
+  return '';
+}
+
+function gravar_diff_estado(PDO $pdo, string $tenantId, array $sess, array $old, array $new): void {
+  $autor = autor_de($sess);
+  $n = 0;
+  $limite = 40;
+  $log = static function (string $acao, string $detalhe) use ($pdo, $tenantId, $autor, &$n, $limite): void {
+    if ($n >= $limite) return;
+    $n += 1;
+    registrar_atividade($pdo, $tenantId, $autor, $acao, $detalhe);
+  };
+
+  $oldP = mapa_por_id($old['pessoas'] ?? []);
+  $newP = mapa_por_id($new['pessoas'] ?? []);
+  foreach ($newP as $id => $p) {
+    $nome = (string)($p['nome'] ?? '');
+    $tipo = (string)($p['tipo'] ?? '');
+    if (!isset($oldP[$id])) {
+      $log('cadastrou', trim($nome . ' · ' . $tipo, ' ·'));
+      continue;
+    }
+    $o = $oldP[$id];
+    $mud = [];
+    foreach (['nome' => 'nome', 'tipo' => 'tipo', 'turma' => 'turma', 'status' => 'status'] as $k => $rot) {
+      if ((string)($o[$k] ?? '') !== (string)($p[$k] ?? '')) $mud[] = $rot;
+    }
+    if ((string)($o['escolaId'] ?? '') !== (string)($p['escolaId'] ?? '')) $mud[] = 'congregação';
+    if ($mud) $log('editou cadastro', trim($nome . ' · ' . implode(', ', $mud), ' ·'));
+  }
+
+  $oldU = mapa_por_id($old['usuarios'] ?? []);
+  $newU = mapa_por_id($new['usuarios'] ?? []);
+  foreach ($newU as $id => $u) {
+    if (isset($oldU[$id])) {
+      $antes = (string)($oldU[$id]['papel'] ?? '');
+      $depois = (string)($u['papel'] ?? '');
+      if ($antes !== '' && $depois !== '' && $antes !== $depois) {
+        $log('alterou acesso', ($u['username'] ?? '') . ' · ' . $antes . ' → ' . $depois);
+      }
+      continue;
+    }
+    if (($u['pessoaId'] ?? '') === '') continue;
+    $log('gerou acesso', trim(($u['username'] ?? '') . ' · ' . ($u['papel'] ?? '') . ' · ' . ($u['nome'] ?? ''), ' ·'));
+  }
+
+  $oldR = mapa_por_id($old['relatorios'] ?? []);
+  $newR = mapa_por_id($new['relatorios'] ?? []);
+  foreach ($newR as $id => $r) {
+    $data = (string)($r['data'] ?? '');
+    $escola = nome_escola_state($new, (string)($r['escolaId'] ?? ''));
+    $rotulo = trim($escola . ($data !== '' ? ' · ' . $data : ''), ' ·');
+    if (!isset($oldR[$id])) {
+      $log('lançou relatório', $rotulo);
+      continue;
+    }
+    $finAntigo = !empty($oldR[$id]['finalizado']);
+    $finNovo = !empty($r['finalizado']);
+    if (!$finAntigo && $finNovo) $log('finalizou relatório', $rotulo);
+  }
+
+  $oldL = mapa_por_id($old['lancamentos'] ?? []);
+  $newL = mapa_por_id($new['lancamentos'] ?? []);
+  foreach ($newL as $id => $l) {
+    if (isset($oldL[$id])) continue;
+    $log('lançou financeiro', trim(($l['tipo'] ?? '') . ' · ' . ($l['descricao'] ?? '') . ' · ' . ($l['valor'] ?? ''), ' ·'));
+  }
+
+  $oldA = mapa_por_id($old['avisos'] ?? []);
+  $newA = mapa_por_id($new['avisos'] ?? []);
+  foreach ($newA as $id => $a) {
+    if (!isset($oldA[$id])) $log('publicou aviso', (string)($a['titulo'] ?? ''));
+  }
+
+  $oldAv = mapa_por_id($old['avaliacoes'] ?? []);
+  $newAv = mapa_por_id($new['avaliacoes'] ?? []);
+  foreach ($newAv as $id => $av) {
+    $oldIds = [];
+    foreach ($oldAv[$id]['respostas'] ?? [] as $resp) {
+      if (is_array($resp) && isset($resp['pessoaId'])) $oldIds[(string)$resp['pessoaId']] = true;
+    }
+    foreach ($av['respostas'] ?? [] as $resp) {
+      if (!is_array($resp) || empty($resp['pessoaId'])) continue;
+      $pid = (string)$resp['pessoaId'];
+      if (isset($oldIds[$pid])) continue;
+      $nome = (string)($newP[$pid]['nome'] ?? $pid);
+      $log('respondeu avaliação', $nome . (!empty($av['turma']) ? ' · ' . $av['turma'] : ''));
+    }
+  }
 }
 
 function colunas(PDO $pdo, string $table): array {
@@ -290,12 +460,52 @@ function senha_forte(): string {
   return $out;
 }
 
+function senha_e_hash(string $senha): bool {
+  return strncmp($senha, '$2y$', 4) === 0
+    || strncmp($senha, '$2a$', 4) === 0
+    || strncmp($senha, '$2b$', 4) === 0;
+}
+
+function slug_login(string $nome): string {
+  $s = iconv('UTF-8', 'ASCII//TRANSLIT', $nome) ?: $nome;
+  $s = strtolower(preg_replace('/[^a-z0-9]+/i', '', $s) ?? '');
+  $s = substr($s, 0, 14);
+  return $s !== '' ? $s : 'user';
+}
+
 function papel_do_tipo(string $tipo): ?string {
   if ($tipo === 'Professor') return 'professor';
   if ($tipo === 'Aluno') return 'aluno';
   if ($tipo === 'Superintendente') return 'superintendente';
   if ($tipo === 'Secretário') return 'secretario';
   return null;
+}
+
+function stamp_missing_updated_at(array $state, string $ts): array {
+  $campos = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes'];
+  foreach ($campos as $campo) {
+    if (!isset($state[$campo]) || !is_array($state[$campo])) continue;
+    foreach ($state[$campo] as $i => $item) {
+      if (!is_array($item) || empty($item['id'])) continue;
+      if (empty($item['updatedAt'])) $state[$campo][$i]['updatedAt'] = $ts;
+    }
+  }
+  return $state;
+}
+
+function username_disponivel(PDO $pdo, string $username, string $exceptId): string {
+  $username = strtolower(trim($username));
+  if ($username === '') $username = 'user.' . bin2hex(random_bytes(3));
+  $base = $username;
+  $n = 1;
+  while (true) {
+    $st = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+    $st->execute([$username]);
+    $row = $st->fetch();
+    if (!$row || (string)$row['id'] === $exceptId) return $username;
+    $n += 1;
+    $username = $base . $n;
+  }
 }
 
 function reconciliar_acessos(array $state): array {
@@ -305,8 +515,11 @@ function reconciliar_acessos(array $state): array {
   }
   $escolhidos = [];
   $out = [];
+  $usernames = [];
   foreach ($state['usuarios'] ?? [] as $u) {
     $pid = (string)($u['pessoaId'] ?? '');
+    $key = strtolower(trim((string)($u['username'] ?? '')));
+    if ($key !== '') $usernames[$key] = true;
     if ($pid === '' || !isset($pessoasById[$pid])) {
       $out[] = $u;
       continue;
@@ -320,6 +533,33 @@ function reconciliar_acessos(array $state): array {
     $u['turma'] = $p['turma'] ?? ($u['turma'] ?? '');
     $escolhidos[$pid] = true;
     $out[] = $u;
+  }
+  $suf = ['professor' => 'prof', 'aluno' => 'aluno', 'superintendente' => 'super', 'secretario' => 'sec'];
+  foreach ($pessoasById as $pid => $p) {
+    if (isset($escolhidos[$pid])) continue;
+    if (($p['status'] ?? 'Ativo') !== 'Ativo') continue;
+    $papel = papel_do_tipo((string)($p['tipo'] ?? ''));
+    if (!$papel) continue;
+    $base = slug_login((string)($p['nome'] ?? '')) . '.' . ($suf[$papel] ?? 'user');
+    $username = $base;
+    $n = 1;
+    while (isset($usernames[$username])) {
+      $n += 1;
+      $username = $base . $n;
+    }
+    $usernames[$username] = true;
+    $out[] = [
+      'id' => uid('u'),
+      'nome' => $p['nome'] ?? $username,
+      'username' => $username,
+      'senha' => senha_forte(),
+      'papel' => $papel,
+      'escolaId' => $p['escolaId'] ?? '',
+      'pessoaId' => $pid,
+      'turma' => $p['turma'] ?? '',
+      'email' => strtolower(trim((string)($p['email'] ?? ''))),
+      'updatedAt' => gmdate('c'),
+    ];
   }
   $state['usuarios'] = $out;
   return $state;
@@ -433,66 +673,88 @@ function mesclar_usuarios_banco(PDO $pdo, string $tenantId, array $state): array
     $map[$key] = [
       'id' => $atual['id'] ?? $row['id'],
       'nome' => $atual['nome'] ?? $row['nome'],
-      'username' => $row['username'],
+      'username' => $atual['username'] ?? $row['username'],
       'senha' => $atual['senha'] ?? '',
-      'papel' => $row['papel'] ?: ($atual['papel'] ?? 'sede'),
-      'escolaId' => ($row['escola_id'] ?? '') !== '' ? $row['escola_id'] : ($atual['escolaId'] ?? null),
-      'pessoaId' => ($row['pessoa_id'] ?? '') !== '' ? $row['pessoa_id'] : ($atual['pessoaId'] ?? null),
-      'turma' => ($row['turma'] ?? '') !== '' ? $row['turma'] : ($atual['turma'] ?? null),
-      'email' => $row['email'] ?: ($atual['email'] ?? ''),
+      'papel' => $atual['papel'] ?? ($row['papel'] ?: 'sede'),
+      'escolaId' => ($atual['escolaId'] ?? '') !== '' ? $atual['escolaId'] : (($row['escola_id'] ?? '') !== '' ? $row['escola_id'] : null),
+      'pessoaId' => ($atual['pessoaId'] ?? '') !== '' ? $atual['pessoaId'] : (($row['pessoa_id'] ?? '') !== '' ? $row['pessoa_id'] : null),
+      'turma' => ($atual['turma'] ?? '') !== '' ? $atual['turma'] : (($row['turma'] ?? '') !== '' ? $row['turma'] : null),
+      'email' => $atual['email'] ?? ($row['email'] ?: ''),
     ];
   }
   $state['usuarios'] = array_values($map);
   return $state;
 }
 
-function sync_users(PDO $pdo, string $tenantId, array $state): void {
+function sync_users(PDO $pdo, string $tenantId, array &$state): void {
   $emailsPessoa = [];
   foreach ($state['pessoas'] ?? [] as $p) {
     if (!empty($p['id'])) $emailsPessoa[(string)$p['id']] = strtolower(trim((string)($p['email'] ?? '')));
   }
-  foreach ($state['usuarios'] ?? [] as $u) {
+  foreach ($state['usuarios'] ?? [] as $i => $u) {
+    $id = (string)($u['id'] ?? '');
+    if ($id === '') {
+      $id = uid('u');
+      $state['usuarios'][$i]['id'] = $id;
+    }
     $username = strtolower(trim((string)($u['username'] ?? '')));
     if ($username === '') continue;
-    $id = $u['id'] ?? uid('u');
     $senha = (string)($u['senha'] ?? '');
     $email = strtolower(trim((string)($u['email'] ?? '')));
     if ($email === '' && !empty($u['pessoaId'])) $email = $emailsPessoa[(string)$u['pessoaId']] ?? '';
-    $exist = $pdo->prepare('SELECT id, senha_hash FROM users WHERE username = ?');
-    $exist->execute([$username]);
-    $row = $exist->fetch();
-    if ($row) {
-      $hash = $row['senha_hash'];
-      if ($senha !== '' && !password_verify($senha, $hash)) {
+
+    $st = $pdo->prepare('SELECT id, senha_hash, tenant_id, username FROM users WHERE id = ?');
+    $st->execute([$id]);
+    $row = $st->fetch();
+    if (!$row) {
+      $st = $pdo->prepare('SELECT id, senha_hash, tenant_id, username FROM users WHERE username = ?');
+      $st->execute([$username]);
+      $byName = $st->fetch();
+      if ($byName && (string)$byName['tenant_id'] === $tenantId) {
+        $row = $byName;
+        $id = (string)$byName['id'];
+        $state['usuarios'][$i]['id'] = $id;
+      }
+    }
+
+    $exceptId = $row ? (string)$row['id'] : $id;
+    $livre = username_disponivel($pdo, $username, $exceptId);
+    if ($livre !== $username) {
+      $username = $livre;
+      $state['usuarios'][$i]['username'] = $username;
+    }
+
+    $hash = $row['senha_hash'] ?? null;
+    if ($senha !== '' && !senha_e_hash($senha)) {
+      if (!$hash || !password_verify($senha, $hash)) {
         $hash = password_hash($senha, PASSWORD_DEFAULT);
       }
-      $pdo->prepare('UPDATE users SET tenant_id=?, nome=?, senha_hash=?, papel=?, escola_id=?, pessoa_id=?, turma=?, email=? WHERE username=?')
-        ->execute([
-          $tenantId,
-          $u['nome'] ?? $username,
-          $hash,
-          $u['papel'] ?? 'superintendente',
-          $u['escolaId'] ?? '',
-          $u['pessoaId'] ?? '',
-          $u['turma'] ?? '',
-          $email,
-          $username,
-        ]);
+    }
+    if (!$hash) {
+      if ($senha === '' || senha_e_hash($senha)) {
+        $senha = senha_forte();
+        $state['usuarios'][$i]['senha'] = $senha;
+      }
+      $hash = password_hash($senha, PASSWORD_DEFAULT);
+    }
+
+    $vals = [
+      $tenantId,
+      $u['nome'] ?? $username,
+      $username,
+      $hash,
+      $u['papel'] ?? 'superintendente',
+      $u['escolaId'] ?? '',
+      $u['pessoaId'] ?? '',
+      $u['turma'] ?? '',
+      $email,
+    ];
+    if ($row) {
+      $pdo->prepare('UPDATE users SET tenant_id=?, nome=?, username=?, senha_hash=?, papel=?, escola_id=?, pessoa_id=?, turma=?, email=? WHERE id=?')
+        ->execute(array_merge($vals, [$row['id']]));
     } else {
-      if ($senha === '') $senha = senha_forte();
       $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,escola_id,pessoa_id,turma,email) VALUES (?,?,?,?,?,?,?,?,?,?)')
-        ->execute([
-          $id,
-          $tenantId,
-          $u['nome'] ?? $username,
-          $username,
-          password_hash($senha, PASSWORD_DEFAULT),
-          $u['papel'] ?? 'superintendente',
-          $u['escolaId'] ?? '',
-          $u['pessoaId'] ?? '',
-          $u['turma'] ?? '',
-          $email,
-        ]);
+        ->execute(array_merge([$id], $vals));
     }
   }
   $keepIds = [];

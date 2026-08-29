@@ -1,5 +1,5 @@
 import type { AppState, Licao, Pessoa } from './types'
-import { formatDateBR, whatsappUrl } from './utils'
+import { formatDateBR, uid, whatsappUrl } from './utils'
 
 export type AulaMarca = { data: string; presente: boolean }
 
@@ -101,12 +101,86 @@ export function dataBR(iso: string | null) {
   return iso ? formatDateBR(iso) : '—'
 }
 
-export function licaoDaData(licoes: Licao[], eventos: AppState['eventos'], data: string): Licao | null {
+export function licaoDaData(
+  licoes: Licao[],
+  eventos: AppState['eventos'],
+  data: string,
+  filtro?: { turma?: string; escolaId?: string },
+): Licao | null {
+  const catalogo = catalogoDaData(licoes, eventos, data)
+  if (!catalogo) return null
+  return licaoDaTurma(licoes, catalogo, filtro?.turma, filtro?.escolaId)
+}
+
+export function ehLicaoGeral(l: Licao) {
+  return !(l.turma ?? '').trim()
+}
+
+export function chaveAula(l: Pick<Licao, 'ano' | 'trimestre' | 'numero'>) {
+  return `${l.ano}|${l.trimestre}|${l.numero}`
+}
+
+export function licoesCatalogo(licoes: Licao[]) {
+  return licoes.filter(ehLicaoGeral)
+}
+
+export function licaoDaTurma(licoes: Licao[], catalogo: Licao, turma?: string, escolaId?: string): Licao {
+  const t = (turma ?? '').trim().toLowerCase()
+  if (!t) return catalogo
+  const mesmas = licoes.filter(
+    (l) =>
+      (l.turma ?? '').trim().toLowerCase() === t &&
+      l.ano === catalogo.ano &&
+      l.trimestre === catalogo.trimestre &&
+      l.numero === catalogo.numero,
+  )
+  if (escolaId) {
+    const daEscola = mesmas
+      .filter((l) => !l.escolaId || l.escolaId === escolaId)
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+    if (daEscola[0]) return daEscola[0]
+  }
+  return (
+    [...mesmas].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0] ?? catalogo
+  )
+}
+
+export function catalogoDaData(licoes: Licao[], eventos: AppState['eventos'], data: string): Licao | null {
+  const gerais = licoesCatalogo(licoes)
   const ev = eventos.find((e) => e.data === data && e.licaoId)
-  if (ev?.licaoId) return licoes.find((l) => l.id === ev.licaoId) ?? null
+  if (ev?.licaoId) {
+    const apontada = licoes.find((l) => l.id === ev.licaoId)
+    if (apontada) {
+      if (ehLicaoGeral(apontada)) return apontada
+      return gerais.find((l) => chaveAula(l) === chaveAula(apontada)) ?? apontada
+    }
+  }
   const aulas = eventos.filter((e) => e.tipo === 'licao' && e.licaoId).sort((a, b) => a.data.localeCompare(b.data))
   const anterior = [...aulas].reverse().find((e) => e.data <= data) ?? aulas.at(-1)
-  return licoes.find((l) => l.id === anterior?.licaoId) ?? licoes[0] ?? null
+  if (anterior?.licaoId) {
+    const apontada = licoes.find((l) => l.id === anterior.licaoId)
+    if (apontada) {
+      if (ehLicaoGeral(apontada)) return apontada
+      return gerais.find((l) => chaveAula(l) === chaveAula(apontada)) ?? apontada
+    }
+  }
+  return gerais[0] ?? licoes[0] ?? null
+}
+
+export function copiarLicaoParaTurma(base: Licao, turma: string, escolaId?: string, faixaEtaria?: string): Licao {
+  return {
+    ...base,
+    id: uid('lic'),
+    turma,
+    escolaId,
+    faixaEtaria,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+export function catalogoDeLicao(licoes: Licao[], l: Licao): Licao {
+  if (ehLicaoGeral(l)) return l
+  return licoes.find((x) => ehLicaoGeral(x) && chaveAula(x) === chaveAula(l)) ?? l
 }
 
 export function eventoDaData(eventos: AppState['eventos'], data: string) {

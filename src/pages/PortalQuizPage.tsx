@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { LicaoSelect } from '../components/LicaoSelect'
 import { Field, PrimaryButton } from '../components/ui'
-import { licaoDaData } from '../lib/acompanhamento'
+import { catalogoDeLicao, licaoDaData } from '../lib/acompanhamento'
 import { useStore } from '../lib/store'
 import { pontosAvaliacaoDe } from '../lib/types'
 import { lastSunday, toISODate } from '../lib/utils'
@@ -12,9 +12,13 @@ export function PortalQuizPage() {
   const daTurma = state.avaliacoes.filter((a) => a.turma === usuario?.turma)
   const licaoIds = [...new Set(daTurma.map((a) => a.licaoId))]
   const licoesQuiz = state.licoes.filter((l) => licaoIds.includes(l.id))
-  const atual = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()))
+  const atual = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()), {
+    turma: usuario?.turma,
+    escolaId: usuario?.escolaId,
+  })
+  const catalogoAtual = atual ? catalogoDeLicao(state.licoes, atual) : null
   const [licaoId, setLicaoId] = useState(
-    atual && licaoIds.includes(atual.id) ? atual.id : (licaoIds[0] ?? ''),
+    catalogoAtual && licaoIds.includes(catalogoAtual.id) ? catalogoAtual.id : (licaoIds[0] ?? ''),
   )
   const quizzes = daTurma.filter((a) => a.licaoId === licaoId)
   const [escolhas, setEscolhas] = useState<Record<string, number>>({})

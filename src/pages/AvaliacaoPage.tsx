@@ -2,7 +2,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { LicaoSelect } from '../components/LicaoSelect'
 import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
-import { licaoDaData } from '../lib/acompanhamento'
+import { catalogoDeLicao, licaoDaData, licoesCatalogo } from '../lib/acompanhamento'
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
 import type { Avaliacao } from '../lib/types'
@@ -22,7 +22,11 @@ export function AvaliacaoPage() {
   const [turma, setTurma] = useState(usuario?.turma || turmas.find((t) => t === 'Primários A') || turmas[0] || '')
   const turmaAtual = ehProfessor && usuario?.turma ? usuario.turma : turma
   const hoje = toISODate(lastSunday())
-  const licaoAtual = licaoDaData(state.licoes, state.eventos, hoje) ?? state.licoes.at(-1)
+  const licaoAtualRaw = licaoDaData(state.licoes, state.eventos, hoje, {
+    turma: turmaAtual,
+    escolaId,
+  })
+  const licaoAtual = licaoAtualRaw ? catalogoDeLicao(state.licoes, licaoAtualRaw) : licoesCatalogo(state.licoes).at(-1)
   const [licaoId, setLicaoId] = useState(licaoAtual?.id ?? '')
   const licao = state.licoes.find((l) => l.id === licaoId)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -97,7 +101,7 @@ export function AvaliacaoPage() {
 
       <section className="mb-6 rounded-xl bg-white p-5 shadow-sm">
         <Field label="Lição">
-          <LicaoSelect value={licaoId} onChange={setLicaoId} licoes={state.licoes} eventos={state.eventos} />
+          <LicaoSelect value={licaoId} onChange={setLicaoId} licoes={licoesCatalogo(state.licoes)} eventos={state.eventos} />
         </Field>
         {licao ? (
           <p className="mt-2 text-sm text-navy">

@@ -1,13 +1,14 @@
 import { Check, Download, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { ImportacaoExcel } from '../components/ImportacaoExcel'
 import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
-import { exportToExcel } from '../lib/excel'
+import { casarOpcao, celula, exportToExcel, lerPlanilha } from '../lib/excel'
 import { useStore } from '../lib/store'
 import { STATUS_ESCOLA, type Escola, type StatusEscola } from '../lib/types'
 import { matches, uid } from '../lib/utils'
 
 export function EscolasPage() {
-  const { escolasVisiveis, saveEscola, removeEscola, podeVerTudo } = useStore()
+  const { escolasVisiveis, saveEscola, importarEscolas, removeEscola, podeVerTudo } = useStore()
   const [busca, setBusca] = useState('')
   const [limite, setLimite] = useState('Todos')
   const [editing, setEditing] = useState<Escola | null>(null)
@@ -67,7 +68,53 @@ export function EscolasPage() {
         ) : null}
       </div>
 
-      <section className="rounded-xl bg-white p-4 shadow-sm">
+      {podeVerTudo ? (
+        <ImportacaoExcel
+          arquivoModelo="modelo-escolas-ebd"
+          colunas={['Nome', 'Setor', 'Bairro', 'Regional', 'Responsável', 'Status']}
+          exemplo={{
+            Nome: 'Ex.: Congregação Centro',
+            Setor: 'Sede',
+            Bairro: 'Centro',
+            Regional: 'Regional 35',
+            Responsável: 'Maria Silva',
+            Status: 'Ativa',
+          }}
+          onImportar={async (file) => {
+            const rows = await lerPlanilha(file)
+            const novas: Escola[] = []
+            const erros: string[] = []
+            rows.forEach((row, i) => {
+              const linha = i + 2
+              const nome = celula(row, 'nome', 'congregacao', 'igreja')
+              if (!nome || /^ex\.?:/i.test(nome)) return
+              const ja =
+                escolasVisiveis.some((e) => e.nome.toLowerCase() === nome.toLowerCase()) ||
+                novas.some((e) => e.nome.toLowerCase() === nome.toLowerCase())
+              if (ja) {
+                erros.push(`Linha ${linha}: escola "${nome}" já cadastrada`)
+                return
+              }
+              novas.push({
+                id: uid('esc'),
+                nome,
+                setor: celula(row, 'setor') || 'Sede',
+                bairro: celula(row, 'bairro'),
+                regional: celula(row, 'regional'),
+                responsavel: celula(row, 'responsavel'),
+                username: '',
+                status: casarOpcao(celula(row, 'status'), STATUS_ESCOLA, 'Ativa'),
+                ativos: 0,
+                inativos: 0,
+              })
+            })
+            importarEscolas(novas)
+            return { ok: novas.length, erros }
+          }}
+        />
+      ) : null}
+
+      <section className="mb-5 rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">
             Escolas associadas ({totais.alunos} alunos e professores)

@@ -58,6 +58,7 @@ export type Pessoa = {
   escolaId: string
   telefone?: string
   email?: string
+  updatedAt?: string
 }
 
 export type TurmaCadastro = {
@@ -77,6 +78,7 @@ export type Usuario = {
   pessoaId?: string
   turma?: string
   email?: string
+  updatedAt?: string
 }
 
 export type SetorAcesso = {
@@ -153,6 +155,10 @@ export type Licao = {
   aplicacao: string
   atividade: string
   complementar: string
+  turma?: string
+  escolaId?: string
+  faixaEtaria?: string
+  updatedAt?: string
 }
 
 export type EventoCalendario = {

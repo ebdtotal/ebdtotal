@@ -114,7 +114,13 @@ export function ChamadaPage() {
     setTurmaAberta(turma)
   }
 
-  const visiveis = alunos.filter((a) => pessoas.some((p) => p.id === a.pessoaId))
+  const visiveis = alunos
+    .filter((a) => pessoas.some((p) => p.id === a.pessoaId))
+    .sort((a, b) => {
+      const na = pessoas.find((p) => p.id === a.pessoaId)?.nome ?? ''
+      const nb = pessoas.find((p) => p.id === b.pessoaId)?.nome ?? ''
+      return na.localeCompare(nb, 'pt-BR')
+    })
   const existente = state.relatorios.find((r) => r.escolaId === escolaId && r.data === data)
   const finalizado = existente?.finalizado ?? false
   const bloqueado = finalizado && !editando
@@ -436,7 +442,7 @@ export function ChamadaPage() {
                         : 'border-l-transparent bg-page'
                     } disabled:opacity-60`}
                   >
-                    <span className="font-medium text-ink">{p.nome.split(' ')[0]}</span>
+                    <span className="min-w-0 flex-1 break-words pr-3 font-medium leading-snug text-ink">{p.nome}</span>
                     <span
                       className={`flex h-7 w-7 items-center justify-center rounded-full ${
                         a.presente ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-white'
@@ -579,7 +585,6 @@ export function ChamadaPage() {
             const p = pessoas.find((x) => x.id === a.pessoaId)
             if (!p) return null
             const pts = pontosDe(a)
-            const primeiro = p.nome.split(' ')[0]
             return (
               <li
                 key={a.pessoaId}
@@ -593,7 +598,7 @@ export function ChamadaPage() {
                   onClick={() => toggle(a.pessoaId, 'presente')}
                   className="min-w-0 flex-1 py-3 pl-3 text-left"
                 >
-                  <span className="font-medium text-ink">{primeiro}</span>
+                  <span className="break-words font-medium leading-snug text-ink">{p.nome}</span>
                   {pts > 0 ? <span className="ml-1.5 text-sm font-bold text-emerald-600">+{pts}</span> : null}
                 </button>
                 <div className="flex shrink-0 items-center gap-1 pr-2">

@@ -8,6 +8,7 @@ import { useStore } from './lib/store'
 import { AlertasPage } from './pages/AlertasPage'
 import { AssinePage } from './pages/AssinePage'
 import { AvaliacaoPage } from './pages/AvaliacaoPage'
+import { AtividadesPage } from './pages/AtividadesPage'
 import { AvisosPage } from './pages/AvisosPage'
 import { CadastrosPage } from './pages/CadastrosPage'
 import { CalendarioPage } from './pages/CalendarioPage'
@@ -168,6 +169,7 @@ export default function App() {
       <Route path="/resumos" element={<Staff><ResumosPage /></Staff>} />
       <Route path="/chamada" element={<Staff><ChamadaPage /></Staff>} />
       <Route path="/cadastros" element={<Staff><CadastrosPage /></Staff>} />
+      <Route path="/atividades" element={<Staff><AtividadesPage /></Staff>} />
       <Route path="/turmas" element={<Staff><TurmasPage /></Staff>} />
       <Route path="/escolas" element={<Staff><EscolasPage /></Staff>} />
       <Route path="/rankings" element={<Staff><RankingPage /></Staff>} />

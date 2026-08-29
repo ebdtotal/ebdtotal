@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { DateInput, Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
-import { licaoDaData } from '../lib/acompanhamento'
+import { copiarLicaoParaTurma, ehLicaoGeral, licaoDaTurma, licoesCatalogo } from '../lib/acompanhamento'
 import { nomeAulaPadrao, trimestreDe } from '../lib/pedagogia'
 import { useStore } from '../lib/store'
 import type { Licao } from '../lib/types'
 import { formatDateBR, lastSunday, parseISODate, toISODate, uid } from '../lib/utils'
 
-function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero' | 'tema'>): Licao {
+function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero' | 'tema'> & Partial<Licao>): Licao {
   return {
     textoBiblico: '',
     versiculo: '',
@@ -23,27 +23,55 @@ function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero
 }
 
 export function LicaoPage() {
-  const { state, podeEditarLicoes, saveLicao, removeLicao } = useStore()
+  const { state, usuario, ehProfessor, podeEditarLicoes, podeEditarConteudoLicao, escolasVisiveis, saveLicao, removeLicao } =
+    useStore()
   const [params, setParams] = useSearchParams()
   const hoje = toISODate(lastSunday())
-  const atual = licaoDaData(state.licoes, state.eventos, hoje)
-  const id = params.get('id') || atual?.id || state.licoes[0]?.id
-  const licao = state.licoes.find((l) => l.id === id) ?? state.licoes[0]
-  const evento = state.eventos.find((e) => e.licaoId === licao?.id)
+  const turmasDaIgreja = useMemo(() => {
+    const ids = new Set(escolasVisiveis.map((e) => e.id))
+    return (state.turmas ?? []).filter((t) => ids.has(t.escolaId)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [state.turmas, escolasVisiveis])
+  const [escolaSel, setEscolaSel] = useState(usuario?.escolaId ?? escolasVisiveis[0]?.id ?? '')
+  const [turmaSel, setTurmaSel] = useState(ehProfessor ? (usuario?.turma ?? '') : '')
+  const catalogo = useMemo(() => licoesCatalogo(state.licoes), [state.licoes])
+  const atualCat = catalogo.find((l) => l.id === params.get('id')) ?? catalogo[0]
+  const id = params.get('id') || atualCat?.id || catalogo[0]?.id
+  const licaoCatalogo = catalogo.find((l) => l.id === id) ?? catalogo[0]
+  const licao = licaoCatalogo
+    ? licaoDaTurma(state.licoes, licaoCatalogo, turmaSel || undefined, escolaSel || undefined)
+    : undefined
+  const evento = state.eventos.find((e) => e.licaoId === licaoCatalogo?.id)
   const [editando, setEditando] = useState<Licao | null>(null)
   const [dataAula, setDataAula] = useState(hoje)
-  const anos = useMemo(() => [...new Set(state.licoes.map((l) => l.ano))].sort((a, b) => b - a), [state.licoes])
-  const [ano, setAno] = useState(licao?.ano ?? anos[0] ?? 2026)
-  const [tri, setTri] = useState(licao?.trimestre ?? trimestreDe(lastSunday()))
-  const lista = state.licoes.filter((l) => l.ano === ano && l.trimestre === tri)
+  const anos = useMemo(() => [...new Set(catalogo.map((l) => l.ano))].sort((a, b) => b - a), [catalogo])
+  const [ano, setAno] = useState(licaoCatalogo?.ano ?? anos[0] ?? 2026)
+  const [tri, setTri] = useState(licaoCatalogo?.trimestre ?? trimestreDe(lastSunday()))
+  const lista = catalogo.filter((l) => l.ano === ano && l.trimestre === tri)
+  const turmaCadastro = turmasDaIgreja.find((t) => t.nome === turmaSel && (!escolaSel || t.escolaId === escolaSel))
+  const ehVariante = !!licao && !ehLicaoGeral(licao)
 
   useEffect(() => {
-    if (!licao) return
-    setAno(licao.ano)
-    setTri(licao.trimestre)
-  }, [licao?.id, licao?.ano, licao?.trimestre])
+    if (ehProfessor) setTurmaSel(usuario?.turma ?? '')
+  }, [ehProfessor, usuario?.turma])
 
-  if (!licao) {
+  useEffect(() => {
+    if (!licaoCatalogo) return
+    setAno(licaoCatalogo.ano)
+    setTri(licaoCatalogo.trimestre)
+  }, [licaoCatalogo?.id, licaoCatalogo?.ano, licaoCatalogo?.trimestre])
+
+  const turmasDaEscolaSel = turmasDaIgreja.filter((t) => !escolaSel || t.escolaId === escolaSel)
+
+  function abrirEdicao(base: Licao) {
+    setDataAula(evento?.data ?? hoje)
+    if (turmaSel && ehLicaoGeral(base)) {
+      setEditando(copiarLicaoParaTurma(base, turmaSel, escolaSel || undefined, turmaCadastro?.faixaEtaria))
+      return
+    }
+    setEditando(base)
+  }
+
+  if (!licaoCatalogo || !licao) {
     return (
       <div>
         <p className="text-sm text-muted">Nenhuma aula cadastrada.</p>
@@ -77,7 +105,7 @@ export function LicaoPage() {
             setEditando(null)
             setAno(l.ano)
             setTri(l.trimestre)
-            setParams({ id: l.id })
+            if (ehLicaoGeral(l)) setParams({ id: l.id })
           }}
         />
       </div>
@@ -92,28 +120,37 @@ export function LicaoPage() {
           <p className="text-sm text-muted">
             {licao.trimestre}º trimestre {licao.ano}
             {evento ? ` · ${formatDateBR(evento.data)}` : ''}
-            {podeEditarLicoes ? ' · master e superintendente podem editar' : ''}
+            {turmaSel ? ` · turma ${turmaSel}` : ' · modelo geral'}
+            {ehProfessor
+              ? ' · você edita o conteúdo da sua turma'
+              : podeEditarLicoes
+                ? ' · escolha a turma para o conteúdo de cada classe'
+                : ''}
           </p>
         </div>
-        {podeEditarLicoes ? (
-          <div className="flex flex-wrap gap-2">
-            <GhostButton onClick={() => { setDataAula(evento?.data ?? hoje); setEditando(licao) }}>Editar</GhostButton>
+        <div className="flex flex-wrap gap-2">
+          {podeEditarConteudoLicao && (ehProfessor ? !!turmaSel : true) ? (
+            <GhostButton onClick={() => abrirEdicao(licao)}>Editar conteúdo</GhostButton>
+          ) : null}
+          {podeEditarLicoes && ehLicaoGeral(licao) ? (
             <GhostButton
               onClick={() => {
-                if (confirm('Excluir esta aula? Professores e alunos deixam de vê-la.')) {
-                  removeLicao(licao.id)
+                if (confirm('Excluir esta aula do calendário? Professores e alunos deixam de vê-la.')) {
+                  removeLicao(licaoCatalogo.id)
                   setParams({})
                 }
               }}
             >
               Excluir
             </GhostButton>
+          ) : null}
+          {podeEditarLicoes ? (
             <PrimaryButton
               onClick={() => {
                 const d = parseISODate(hoje)
                 const trimestre = trimestreDe(d)
                 const numero =
-                  state.licoes
+                  catalogo
                     .filter((l) => l.ano === d.getFullYear() && l.trimestre === trimestre)
                     .reduce((m, l) => Math.max(m, l.numero), 0) + 1
                 setDataAula(hoje)
@@ -130,11 +167,48 @@ export function LicaoPage() {
             >
               Nova aula
             </PrimaryButton>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {podeEditarLicoes || ehProfessor ? (
+          <>
+            {escolasVisiveis.length > 1 && !ehProfessor ? (
+              <Field label="Congregação">
+                <select
+                  className={inputClass}
+                  value={escolaSel}
+                  onChange={(e) => {
+                    setEscolaSel(e.target.value)
+                    setTurmaSel('')
+                  }}
+                >
+                  {escolasVisiveis.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+            <Field label="Turma">
+              {ehProfessor ? (
+                <input className={inputClass} value={turmaSel || 'Sem turma vinculada'} readOnly />
+              ) : (
+                <select className={inputClass} value={turmaSel} onChange={(e) => setTurmaSel(e.target.value)}>
+                  <option value="">Modelo geral (todas as turmas)</option>
+                  {turmasDaEscolaSel.map((t) => (
+                    <option key={t.id} value={t.nome}>
+                      {t.nome}
+                      {t.faixaEtaria ? ` · ${t.faixaEtaria}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          </>
+        ) : null}
         <Field label="Ano">
           <select
             className={inputClass}
@@ -142,7 +216,7 @@ export function LicaoPage() {
             onChange={(e) => {
               const y = Number(e.target.value)
               setAno(y)
-              const primeira = state.licoes.find((l) => l.ano === y && l.trimestre === tri) ?? state.licoes.find((l) => l.ano === y)
+              const primeira = catalogo.find((l) => l.ano === y && l.trimestre === tri) ?? catalogo.find((l) => l.ano === y)
               if (primeira) {
                 setTri(primeira.trimestre)
                 setParams({ id: primeira.id })
@@ -163,7 +237,7 @@ export function LicaoPage() {
             onChange={(e) => {
               const t = Number(e.target.value)
               setTri(t)
-              const primeira = state.licoes.find((l) => l.ano === ano && l.trimestre === t)
+              const primeira = catalogo.find((l) => l.ano === ano && l.trimestre === t)
               if (primeira) setParams({ id: primeira.id })
             }}
           >
@@ -175,7 +249,7 @@ export function LicaoPage() {
           </select>
         </Field>
         <Field label="Aula">
-          <select className={inputClass} value={licao.id} onChange={(e) => setParams({ id: e.target.value })}>
+          <select className={inputClass} value={licaoCatalogo.id} onChange={(e) => setParams({ id: e.target.value })}>
             {lista.map((l) => {
               const ev = state.eventos.find((e) => e.licaoId === l.id)
               return (
@@ -188,6 +262,23 @@ export function LicaoPage() {
           </select>
         </Field>
       </div>
+
+        {ehProfessor && !turmaSel ? (
+          <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Seu usuário ainda não tem turma vinculada. Peça ao superintendente para informar a classe no cadastro do professor.
+          </p>
+        ) : null}
+        {turmaSel && !ehVariante ? (
+        <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          A turma {turmaSel} ainda usa o modelo geral. Edite o conteúdo para gravar a lição desta faixa etária.
+        </p>
+      ) : null}
+      {ehVariante ? (
+        <p className="mb-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Conteúdo próprio da turma {licao.turma}
+          {licao.faixaEtaria ? ` ({licao.faixaEtaria})` : ''}. Os alunos desta classe veem esta versão.
+        </p>
+      ) : null}
 
       <section className="mb-5 rounded-xl bg-navy p-5 text-white shadow-sm">
         <div className="text-xs uppercase tracking-wide text-gold">Tema da aula</div>
@@ -226,14 +317,22 @@ export function LicaoPage() {
       <LicaoModal
         licao={editando}
         data={dataAula}
+        turmaFixa={editando?.turma}
         onData={setDataAula}
         onClose={() => setEditando(null)}
         onSave={(l, data) => {
-          saveLicao(l, data)
+          saveLicao(
+            {
+              ...l,
+              escolaId: l.turma ? l.escolaId || escolaSel || undefined : undefined,
+              faixaEtaria: l.turma ? l.faixaEtaria || turmaCadastro?.faixaEtaria : undefined,
+            },
+            data,
+          )
           setEditando(null)
           setAno(l.ano)
           setTri(l.trimestre)
-          setParams({ id: l.id })
+          if (ehLicaoGeral(l)) setParams({ id: l.id })
         }}
       />
     </div>
@@ -243,12 +342,14 @@ export function LicaoPage() {
 function LicaoModal({
   licao,
   data,
+  turmaFixa,
   onData,
   onClose,
   onSave,
 }: {
   licao: Licao | null
   data: string
+  turmaFixa?: string
   onData: (iso: string) => void
   onClose: () => void
   onSave: (l: Licao, data: string) => void
@@ -263,37 +364,57 @@ function LicaoModal({
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault()
+            const variante = !!(form.turma || turmaFixa)
             const d = parseISODate(data)
             const trimestre = trimestreDe(d)
             onSave(
               {
                 ...form,
-                ano: d.getFullYear(),
-                trimestre,
-                tema: form.tema.trim() || nomeAulaPadrao(trimestre, form.numero),
+                ...(variante
+                  ? {}
+                  : {
+                      ano: d.getFullYear(),
+                      trimestre,
+                    }),
+                tema: form.tema.trim() || nomeAulaPadrao(variante ? form.trimestre : trimestre, form.numero),
                 objetivos: form.objetivos.map((o) => o.trim()).filter(Boolean),
                 perguntas: form.perguntas.map((p) => p.trim()).filter(Boolean),
+                turma: form.turma || turmaFixa || undefined,
               },
               data,
             )
           }}
         >
+          {form.turma || turmaFixa ? (
+            <p className="rounded-lg bg-page px-3 py-2 text-sm text-muted">
+              Conteúdo da turma <b className="text-ink">{form.turma || turmaFixa}</b>. Os alunos desta classe veem esta
+              versão.
+            </p>
+          ) : (
+            <p className="rounded-lg bg-page px-3 py-2 text-sm text-muted">
+              Modelo geral. Use o seletor de turma na página para criar o conteúdo de cada classe.
+            </p>
+          )}
           <Field label="Nome da aula">
             <input className={inputClass} required value={form.tema} onChange={(e) => setForm({ ...form, tema: e.target.value })} />
           </Field>
-          <Field label="Domingo da aula">
-            <DateInput value={data} onChange={onData} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Número da aula no trimestre">
-              <input
-                className={inputClass}
-                type="number"
-                min={1}
-                value={form.numero}
-                onChange={(e) => setForm({ ...form, numero: Number(e.target.value) || 1 })}
-              />
+          {form.turma || turmaFixa ? null : (
+            <Field label="Domingo da aula">
+              <DateInput value={data} onChange={onData} />
             </Field>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {form.turma || turmaFixa ? null : (
+              <Field label="Número da aula no trimestre">
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={1}
+                  value={form.numero}
+                  onChange={(e) => setForm({ ...form, numero: Number(e.target.value) || 1 })}
+                />
+              </Field>
+            )}
             <Field label="Texto bíblico">
               <input className={inputClass} value={form.textoBiblico} onChange={(e) => setForm({ ...form, textoBiblico: e.target.value })} />
             </Field>
@@ -333,7 +454,7 @@ function LicaoModal({
             <textarea className={inputClass} rows={2} value={form.complementar} onChange={(e) => setForm({ ...form, complementar: e.target.value })} />
           </Field>
           <div className="flex justify-end gap-2">
-            <GhostButton onClick={onClose}>Cancelar</GhostButton>
+            <GhostButton type="button" onClick={onClose}>Cancelar</GhostButton>
             <PrimaryButton type="submit">Salvar aula</PrimaryButton>
           </div>
         </form>

@@ -11,7 +11,10 @@ export function PortalAlunoPage() {
   const pessoa = state.pessoas.find((p) => p.id === usuario?.pessoaId)
   const ficha = pessoa ? fichaAluno(state, pessoa.id) : null
   const hoje = toISODate(lastSunday())
-  const licao = licaoDaData(state.licoes, state.eventos, hoje)
+  const licao = licaoDaData(state.licoes, state.eventos, hoje, {
+    turma: pessoa?.turma ?? usuario?.turma,
+    escolaId: pessoa?.escolaId ?? usuario?.escolaId,
+  })
   const nivers = aniversariantes(state.pessoas.filter((p) => p.escolaId === usuario?.escolaId), 14)
   const avisos = (state.avisos ?? []).filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
   const certs = state.certificados.filter((c) => c.pessoaId === pessoa?.id)

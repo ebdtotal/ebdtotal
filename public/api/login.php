@@ -13,22 +13,30 @@ $pdo = db();
 $st = $pdo->prepare('SELECT * FROM users WHERE username = ?');
 $st->execute([$username]);
 $user = $st->fetch();
+if (!$user && strpos($username, '@') !== false) {
+  $st = $pdo->prepare('SELECT * FROM users WHERE email = ?');
+  $st->execute([$username]);
+  $user = $st->fetch();
+}
+if (!$user) {
+  foreach (['.aluno', '.prof', '.super', '.sec'] as $suf) {
+    $len = strlen($suf);
+    if (substr($username, -$len) === $suf) continue;
+    $st = $pdo->prepare('SELECT * FROM users WHERE username = ?');
+    $st->execute([$username . $suf]);
+    $user = $st->fetch();
+    if ($user) break;
+  }
+}
 if (!$user || !password_verify($senha, $user['senha_hash'])) {
   json_err('Usuário ou senha inválidos.', 401);
-}
-
-$user = alinhar_papel_login($pdo, $user);
-
-$ten = $pdo->prepare('SELECT status FROM tenants WHERE id = ?');
-$ten->execute([$user['tenant_id']]);
-$t = $ten->fetch();
-if ($t && $t['status'] === 'suspensa' && $user['papel'] !== 'admin') {
-  json_err('Assinatura suspensa. Fale com o suporte.', 403);
 }
 
 $token = bin2hex(random_bytes(24));
 $pdo->prepare('INSERT INTO sessions (token,user_id,tenant_id,expires_at) VALUES (?,?,?,?)')
   ->execute([$token, $user['id'], $user['tenant_id'], time() + 60 * 60 * 24 * 14]);
+
+registrar_atividade($pdo, (string)$user['tenant_id'], autor_de($user), 'entrou', 'Login no sistema');
 
 json_ok([
   'token' => $token,

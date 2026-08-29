@@ -2,8 +2,9 @@ import { Download, FileText, Plus, Pencil, Trash2, UserRoundSearch, RefreshCw } 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { ImportacaoExcel } from '../components/ImportacaoExcel'
 import { TelaImpressao } from '../components/TelaImpressao'
-import { exportToExcel } from '../lib/excel'
+import { casarOpcao, celula, exportToExcel, lerPlanilha } from '../lib/excel'
 import { htmlListaPdf, tentarImprimirHtml } from '../lib/imprimir'
 import { sugestaoUsername, useStore } from '../lib/store'
 import {
@@ -17,7 +18,7 @@ import {
   type StatusPessoa,
   type TipoPessoa,
 } from '../lib/types'
-import { formatDateBR, matches, senhaGerada, uid } from '../lib/utils'
+import { formatDateBR, matches, parseDateBR, senhaGerada, uid } from '../lib/utils'
 
 const emptyForm = (escolaId: string): Pessoa => ({
   id: uid('p'),
@@ -46,7 +47,7 @@ function precisaAcessoApp(tipo: TipoPessoa) {
 }
 
 export function CadastrosPage() {
-  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, removePessoa, usuario, ehProfessor } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, importarPessoas, removePessoa, usuario, ehProfessor } = useStore()
   const podeCadastrar =
     usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [filtros, setFiltros] = useState({
@@ -63,8 +64,23 @@ export function CadastrosPage() {
   const [aplicados, setAplicados] = useState(filtros)
   const [buscaTabela, setBuscaTabela] = useState('')
   const [editing, setEditing] = useState<Pessoa | null>(null)
-  const [acessoSalvo, setAcessoSalvo] = useState<{ nome: string; username: string; senha: string } | null>(null)
+  const [acessoSalvo, setAcessoSalvo] = useState<{
+    nome: string
+    username: string
+    senha: string
+    pessoaId: string
+    tipo: TipoPessoa
+  } | null>(null)
   const [previewPdf, setPreviewPdf] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!acessoSalvo) return
+    const u = state.usuarios.find((x) => x.pessoaId === acessoSalvo.pessoaId)
+    if (!u) return
+    const senha = u.senha && !u.senha.startsWith('$2') ? u.senha : acessoSalvo.senha
+    if (u.username === acessoSalvo.username && senha === acessoSalvo.senha) return
+    setAcessoSalvo({ ...acessoSalvo, username: u.username, senha })
+  }, [state.usuarios, acessoSalvo])
 
   const pessoas = useMemo(() => {
     const ids = new Set(escolasVisiveis.map((e) => e.id))
@@ -121,6 +137,74 @@ export function CadastrosPage() {
     if (!tentarImprimirHtml(html)) setPreviewPdf(html)
   }
 
+  const COLUNAS_MODELO = [
+    'Nome',
+    'Data de nascimento',
+    'Turma',
+    'Faixa etária',
+    'Tipo',
+    'Sexo',
+    'Status',
+    'Congregação',
+    'WhatsApp',
+    'E-mail',
+    'Login',
+    'Senha',
+  ]
+
+  async function importarArquivo(file: File) {
+    const rows = await lerPlanilha(file)
+    const itens: { pessoa: Pessoa; acesso?: { username: string; senha: string; email?: string } | null }[] = []
+    const erros: string[] = []
+    let usuarios = [...state.usuarios]
+    rows.forEach((row, i) => {
+      const linha = i + 2
+      const nome = celula(row, 'nome')
+      if (!nome || /^ex\.?:/i.test(nome)) return
+      const congregacao = celula(row, 'congregacao', 'igreja', 'escola')
+      const escola =
+        escolasVisiveis.find((e) => matches(e.nome, congregacao)) ??
+        (congregacao ? undefined : escolasVisiveis[0])
+      if (!escola) {
+        erros.push(`Linha ${linha}: congregação "${congregacao || '(vazia)'}" não encontrada`)
+        return
+      }
+      const tipo = casarOpcao(celula(row, 'tipo'), TIPOS_PESSOA, 'Aluno')
+      const sexo = casarOpcao(celula(row, 'sexo'), SEXOS, 'Feminino')
+      const status = casarOpcao(celula(row, 'status'), STATUS_PESSOA, 'Ativo')
+      const faixa = casarOpcao(celula(row, 'faixaetaria', 'faixa'), FAIXAS_ETARIAS, 'Adultos')
+      const nascRaw = celula(row, 'datadenascimento', 'nascimento', 'data')
+      const dataNascimento = nascRaw ? parseDateBR(nascRaw) ?? nascRaw : ''
+      const pessoa: Pessoa = {
+        id: uid('p'),
+        nome,
+        dataNascimento,
+        turma: celula(row, 'turma'),
+        faixaEtaria: faixa,
+        tipo,
+        sexo,
+        status,
+        escolaId: escola.id,
+        telefone: celula(row, 'whatsapp', 'telefone'),
+        email: celula(row, 'email', 'e-mail').toLowerCase(),
+      }
+      const papel = papelDoTipo(tipo)
+      let acesso: { username: string; senha: string; email?: string } | null = null
+      if (papel && status === 'Ativo') {
+        const username = (celula(row, 'login', 'usuario', 'username') || sugestaoUsername(nome, papel, usuarios)).toLowerCase()
+        const senha = celula(row, 'senha') || senhaGerada()
+        acesso = { username, senha, email: pessoa.email }
+        usuarios = [
+          ...usuarios,
+          { id: uid('u'), nome, username, senha, papel, pessoaId: pessoa.id, escolaId: escola.id, turma: pessoa.turma, email: pessoa.email },
+        ]
+      }
+      itens.push({ pessoa, acesso })
+    })
+    importarPessoas(itens)
+    return { ok: itens.length, erros }
+  }
+
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -141,13 +225,45 @@ export function CadastrosPage() {
         ) : null}
       </div>
 
+      {podeCadastrar ? (
+        <ImportacaoExcel
+          arquivoModelo="modelo-cadastros-ebd"
+          colunas={COLUNAS_MODELO}
+          exemplo={{
+            Nome: 'Ex.: Maria Silva',
+            'Data de nascimento': '12/03/2015',
+            Turma: 'Primários A',
+            'Faixa etária': 'Primários',
+            Tipo: 'Aluno',
+            Sexo: 'Feminino',
+            Status: 'Ativo',
+            Congregação: escolasVisiveis[0]?.nome ?? 'Nome da igreja',
+            WhatsApp: '5598984000000',
+            'E-mail': 'maria@email.com',
+            Login: '',
+            Senha: '',
+          }}
+          onImportar={importarArquivo}
+        />
+      ) : null}
+
       {acessoSalvo ? (
         <div className="mb-5 rounded-xl border border-teal/30 bg-white p-4 shadow-sm">
-          <p className="text-sm font-semibold text-navy">Acesso do app criado para {acessoSalvo.nome}</p>
-          <p className="mt-1 text-sm">
-            Usuário: <b>{acessoSalvo.username}</b> · Senha: <b>{acessoSalvo.senha}</b>
+          <p className="text-sm font-semibold text-navy">
+            Acesso de {acessoSalvo.tipo.toLowerCase()} para {acessoSalvo.nome}
           </p>
-          <p className="mt-1 text-xs text-muted">Anote e entregue à pessoa. Ela entra no app com esses dados.</p>
+          <p className="mt-1 text-sm">
+            Usuário: <b>{acessoSalvo.username}</b>
+            {acessoSalvo.senha ? (
+              <>
+                {' '}
+                · Senha: <b>{acessoSalvo.senha}</b>
+              </>
+            ) : (
+              <> · senha anterior (só muda se você gerar outra)</>
+            )}
+          </p>
+          <p className="mt-1 text-xs text-muted">Anote e entregue à pessoa. Ela entra no site ou no app com esses dados.</p>
         </div>
       ) : null}
 
@@ -273,8 +389,14 @@ export function CadastrosPage() {
           onClose={() => setEditing(null)}
           onSave={(p, acesso) => {
             savePessoa(p, acesso)
-            if (acesso?.username && acesso.senha) {
-              setAcessoSalvo({ nome: p.nome, username: acesso.username, senha: acesso.senha })
+            if (acesso?.username) {
+              setAcessoSalvo({
+                nome: p.nome,
+                username: acesso.username,
+                senha: acesso.senha,
+                pessoaId: p.id,
+                tipo: p.tipo,
+              })
             }
             setEditing(null)
           }}
@@ -327,7 +449,9 @@ function PessoaModal({
     if (!form) return
     const papel = papelDoTipo(tipo)
     setForm({ ...form, tipo })
-    if (!userManual && papel) setUsername(sugestaoUsername(form.nome, papel, state.usuarios, usuarioId))
+    if (!papel) return
+    const sufixoPadrao = ['.aluno', '.prof', '.super', '.sec'].some((s) => username.toLowerCase().endsWith(s))
+    if (!userManual || sufixoPadrao) setUsername(sugestaoUsername(form.nome, papel, state.usuarios, usuarioId))
   }
 
   function atualizarNome(nome: string) {

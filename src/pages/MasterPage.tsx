@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Field, PrimaryButton, inputClass } from '../components/ui'
 import { apiAssinar, apiClientes, apiStatusIgreja, type CadastroGeral, type IgrejaCliente } from '../lib/api'
 import { useStore } from '../lib/store'
@@ -31,6 +31,11 @@ export function MasterPage() {
     <div>
       <h1 className="text-2xl font-semibold text-ink">Igrejas assinantes</h1>
       <p className="mt-1 text-sm text-muted">Cadastro automático de login. Os cadastros do app entram na contabilização geral.</p>
+      <p className="mt-2 text-sm">
+        <Link to="/atividades" className="font-semibold text-navy hover:underline">
+          Ver registro de atividades dos logins →
+        </Link>
+      </p>
 
       <section className="mt-5 rounded-xl bg-white p-5 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold">Nova igreja</h2>

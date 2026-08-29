@@ -14,10 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   if (!is_array($state)) $state = [];
   $updatedAt = is_array($row) ? (string)($row['updated_at'] ?? '') : '';
   $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
-  $state = reconciliar_acessos($state);
+  $ts = $updatedAt !== '' ? $updatedAt : gmdate('c');
+  $state = stamp_missing_updated_at($state, $ts);
   $state = mesclar_usuarios_banco($pdo, $tenantId, $state);
+  $state = reconciliar_acessos($state);
   if (json_encode($state, JSON_UNESCAPED_UNICODE) !== $antes) {
     $now = gmdate('c');
+    sync_users($pdo, $tenantId, $state);
     $chk = $pdo->prepare('SELECT tenant_id FROM app_state WHERE tenant_id = ?');
     $chk->execute([$tenantId]);
     $json = json_encode($state, JSON_UNESCAPED_UNICODE);
@@ -29,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ->execute([$tenantId, $json, $now]);
     }
     $updatedAt = $now;
-    sync_users($pdo, $tenantId, $state);
   }
   json_ok(['state' => $state, 'usuarioId' => $sess['user_id'], 'updatedAt' => $updatedAt]);
 }
@@ -42,17 +44,20 @@ $in = body();
 $state = $in['state'] ?? null;
 if (!is_array($state)) json_err('Estado inválido.');
 
-$stOld = $pdo->prepare('SELECT json FROM app_state WHERE tenant_id = ?');
+$stOld = $pdo->prepare('SELECT json, updated_at FROM app_state WHERE tenant_id = ?');
 $stOld->execute([$tenantId]);
 $oldRow = $stOld->fetch();
 $old = $oldRow ? json_decode((string)$oldRow['json'], true) : [];
 if (!is_array($old)) $old = [];
+$now = gmdate('c');
+$old = stamp_missing_updated_at($old, is_array($oldRow) ? (string)($oldRow['updated_at'] ?? $now) : $now);
+$antesDiff = $old;
 $state = merge_state($old, $state);
 
 $state['sessaoId'] = $sess['user_id'];
 $state = reconciliar_acessos($state);
+sync_users($pdo, $tenantId, $state);
 $json = json_encode($state, JSON_UNESCAPED_UNICODE);
-$now = gmdate('c');
 $chk = $pdo->prepare('SELECT tenant_id FROM app_state WHERE tenant_id = ?');
 $chk->execute([$tenantId]);
 if ($chk->fetch()) {
@@ -62,6 +67,10 @@ if ($chk->fetch()) {
 }
 
 indexar_pessoas($pdo, $tenantId, $state);
-sync_users($pdo, $tenantId, $state);
 sync_cadastros($pdo, $tenantId, $state);
+try {
+  gravar_diff_estado($pdo, $tenantId, $sess, $antesDiff, $state);
+} catch (Throwable $e) {
+  /* */
+}
 json_ok(['ok' => true, 'updatedAt' => $now]);

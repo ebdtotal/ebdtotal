@@ -74,6 +74,7 @@ function criar_cliente(PDO $pdo, array $in): array {
   $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
     ->execute([$tid, json_encode($seed, JSON_UNESCAPED_UNICODE), $now]);
   sync_cadastros($pdo, $tid, $seed);
+  registrar_atividade($pdo, $tid, ['id' => $uid, 'username' => $username, 'nome' => $responsavel, 'papel' => 'sede'], 'criou igreja', $nome);
 
   $emailEnviado = enviar_email(
     $email,
@@ -121,6 +122,7 @@ if ($method === 'PATCH') {
   $status = (string)($in['status'] ?? '');
   if ($id === '' || !in_array($status, ['trial', 'ativa', 'suspensa'], true)) json_err('Dados inválidos.');
   $pdo->prepare('UPDATE tenants SET status = ? WHERE id = ?')->execute([$status, $id]);
+  registrar_atividade($pdo, $id, autor_de($sess), 'alterou igreja', 'Status: ' . $status);
   json_ok(['ok' => true]);
 }
 

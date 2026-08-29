@@ -1,12 +1,14 @@
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { ImportacaoExcel } from '../components/ImportacaoExcel'
 import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { casarOpcao, celula, lerPlanilha } from '../lib/excel'
 import { useStore } from '../lib/store'
 import { FAIXAS_ETARIAS, type FaixaEtaria, type TurmaCadastro } from '../lib/types'
-import { uid } from '../lib/utils'
+import { matches, uid } from '../lib/utils'
 
 export function TurmasPage() {
-  const { state, escolasVisiveis, saveTurma, removeTurma, podeVerTudo, usuario } = useStore()
+  const { state, escolasVisiveis, saveTurma, importarTurmas, removeTurma, podeVerTudo, usuario } = useStore()
   const podeCadastrar =
     usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [editing, setEditing] = useState<TurmaCadastro | null>(null)
@@ -41,6 +43,51 @@ export function TurmasPage() {
           </PrimaryButton>
         ) : null}
       </div>
+
+      {podeCadastrar ? (
+        <ImportacaoExcel
+          arquivoModelo="modelo-turmas-ebd"
+          colunas={['Nome', 'Congregação', 'Faixa etária']}
+          exemplo={{
+            Nome: 'Ex.: Primários A',
+            Congregação: escolasVisiveis[0]?.nome ?? 'Nome da igreja',
+            'Faixa etária': 'Primários',
+          }}
+          onImportar={async (file) => {
+            const rows = await lerPlanilha(file)
+            const novas: TurmaCadastro[] = []
+            const erros: string[] = []
+            rows.forEach((row, i) => {
+              const linha = i + 2
+              const nome = celula(row, 'nome', 'turma')
+              if (!nome || /^ex\.?:/i.test(nome)) return
+              const congregacao = celula(row, 'congregacao', 'igreja', 'escola')
+              const escola =
+                escolasVisiveis.find((e) => matches(e.nome, congregacao)) ??
+                (congregacao ? undefined : escolasVisiveis[0])
+              if (!escola) {
+                erros.push(`Linha ${linha}: congregação "${congregacao || '(vazia)'}" não encontrada`)
+                return
+              }
+              const ja = (state.turmas ?? []).some(
+                (t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase(),
+              ) || novas.some((t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase())
+              if (ja) {
+                erros.push(`Linha ${linha}: turma "${nome}" já existe nesta congregação`)
+                return
+              }
+              novas.push({
+                id: uid('t'),
+                nome,
+                escolaId: escola.id,
+                faixaEtaria: casarOpcao(celula(row, 'faixaetaria', 'faixa'), FAIXAS_ETARIAS, 'Adultos'),
+              })
+            })
+            importarTurmas(novas)
+            return { ok: novas.length, erros }
+          }}
+        />
+      ) : null}
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
         {turmas.length === 0 ? (

@@ -36,6 +36,7 @@ export function LicaoSelect({
             return (
               <option key={l.id} value={l.id}>
                 {l.tema}
+                {l.turma ? ` · ${l.turma}` : ''}
                 {data ? ` · ${formatDateBR(data)}` : ''}
               </option>
             )
