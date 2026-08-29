@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { DateInput, Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
 import { licaoDaData } from '../lib/acompanhamento'
 import { nomeAulaPadrao, trimestreDe } from '../lib/pedagogia'
@@ -23,7 +23,7 @@ function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero
 }
 
 export function LicaoPage() {
-  const { state, ehAluno, podeEditarLicoes, saveLicao, removeLicao } = useStore()
+  const { state, podeEditarLicoes, saveLicao, removeLicao } = useStore()
   const [params, setParams] = useSearchParams()
   const hoje = toISODate(lastSunday())
   const atual = licaoDaData(state.licoes, state.eventos, hoje)
@@ -222,12 +222,6 @@ export function LicaoPage() {
         {licao.atividade ? <Bloco titulo="Atividade" texto={licao.atividade} /> : null}
         {licao.complementar ? <Bloco titulo="Material complementar" texto={licao.complementar} /> : null}
       </div>
-
-      {ehAluno ? null : (
-        <Link to={`/assistente?licao=${licao.id}`} className="mt-5 inline-flex rounded-md bg-navy px-4 py-2 text-sm font-semibold text-white">
-          Preparar aula com o assistente
-        </Link>
-      )}
 
       <LicaoModal
         licao={editando}

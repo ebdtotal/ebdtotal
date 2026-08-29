@@ -42,7 +42,7 @@ const FEATURES = [
   {
     icon: BookOpen,
     title: 'Lição e avaliação',
-    texto: 'Tema da semana, dinâmica, miniavaliação e assistente para preparar a aula.',
+    texto: 'Tema da semana, dinâmica e miniavaliação para a turma.',
   },
   {
     icon: GraduationCap,

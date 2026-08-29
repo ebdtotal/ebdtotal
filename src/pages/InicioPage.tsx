@@ -53,10 +53,10 @@ export function InicioPage() {
           <Link
             key={`${a.to}${a.search ?? ''}`}
             to={{ pathname: a.to, search: a.search }}
-            className="rounded-xl bg-white p-4 shadow-sm transition hover:ring-2 hover:ring-navy/20"
+            className="rounded-2xl bg-navy-2 p-4 shadow-sm transition hover:ring-2 hover:ring-white/20"
           >
-            <div className="font-semibold text-navy">{a.label}</div>
-            <div className="mt-1 text-sm text-muted">{a.texto}</div>
+            <div className="font-semibold text-white">{a.label}</div>
+            <div className="mt-1 text-sm text-white/65">{a.texto}</div>
           </Link>
         ))}
       </div>

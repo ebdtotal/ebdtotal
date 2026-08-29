@@ -323,20 +323,20 @@ export function ChamadaPage() {
             <button
               type="button"
               onClick={abrirProfessores}
-              className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm"
+              className="flex w-full items-center justify-between rounded-2xl bg-navy-2 px-4 py-3.5 text-left text-white shadow-sm"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy/10 text-navy">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
                   <GraduationCap size={20} />
                 </span>
                 <span>
-                  <span className="block font-semibold text-navy">Chamada dos professores</span>
-                  <span className="text-xs text-muted">
+                  <span className="block font-semibold">Chamada dos professores</span>
+                  <span className="text-xs text-white/65">
                     {presentesProf}/{professores.length} presentes · lista única, sem separar por classe
                   </span>
                 </span>
               </span>
-              <span className="shrink-0 text-sm font-medium text-navy">Abrir</span>
+              <span className="shrink-0 text-sm font-medium text-white/90">Abrir</span>
             </button>
           </section>
         ) : null}
@@ -353,19 +353,19 @@ export function ChamadaPage() {
                   <button
                     type="button"
                     onClick={() => abrirTurma(t)}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm"
+                    className="flex w-full items-center justify-between rounded-2xl bg-navy-2 px-4 py-3.5 text-left text-white shadow-sm"
                   >
                     <span>
-                      <span className="block font-semibold text-navy">{t}</span>
-                      <span className="text-xs text-muted">{presentes}/{daTurma.length} presentes</span>
+                      <span className="block font-semibold">{t}</span>
+                      <span className="text-xs text-white/65">{presentes}/{daTurma.length} presentes</span>
                     </span>
-                    <span className="text-sm font-medium text-navy">Abrir</span>
+                    <span className="text-sm font-medium text-white/90">Abrir</span>
                   </button>
                 </li>
               )
             })}
             {turmas.length === 0 ? (
-              <li className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-muted">Nenhuma turma nesta escola.</li>
+              <li className="rounded-2xl bg-navy-2 px-4 py-8 text-center text-sm text-white/65">Nenhuma turma nesta escola.</li>
             ) : null}
           </ul>
         </section>
@@ -589,22 +589,11 @@ export function ChamadaPage() {
                   {pts > 0 ? <span className="ml-1.5 text-sm font-bold text-emerald-600">+{pts}</span> : null}
                 </button>
                 <div className="flex shrink-0 items-center gap-1 pr-2">
-                  <label className="sr-only" htmlFor={`pts-${a.pessoaId}`}>
-                    Pontos de participação
-                  </label>
-                  <input
-                    id={`pts-${a.pessoaId}`}
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    disabled={bloqueado || !a.presente}
+                  <PontosStepper
                     value={a.pontosParticipacao ?? 0}
-                    title="Pontos de participação"
-                    className="h-9 w-11 rounded-lg border border-line bg-white px-1 text-center text-sm font-semibold disabled:opacity-40"
-                    onChange={(e) => setPontosParticipacao(a.pessoaId, Number(e.target.value))}
-                    onClick={(e) => e.stopPropagation()}
+                    disabled={bloqueado || !a.presente}
+                    onChange={(n) => setPontosParticipacao(a.pessoaId, n)}
                   />
-                  <span className="mr-1 text-[10px] text-muted">pts</span>
                   <IconBtn
                     label="Oferta"
                     on={a.ofertou}
@@ -809,7 +798,7 @@ function MoneyField({
         </button>
         <input
           data-oferta="1"
-          className="h-9 w-[7.5rem] rounded-lg border border-line bg-white px-2 text-center text-sm font-semibold outline-none focus:border-navy disabled:opacity-40"
+          className="h-9 w-[7.5rem] rounded-lg border border-line bg-white px-2 text-center text-base font-semibold outline-none focus:border-navy disabled:opacity-40"
           disabled={disabled}
           inputMode="decimal"
           value={texto}
@@ -837,6 +826,48 @@ function MoneyField({
         </button>
       </span>
     </div>
+  )
+}
+
+function PontosStepper({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number
+  disabled?: boolean
+  onChange: (n: number) => void
+}) {
+  return (
+    <span className="flex items-center">
+      <button
+        type="button"
+        disabled={disabled || value <= 0}
+        aria-label="Diminuir pontos"
+        title="Pontos de participação"
+        onClick={(e) => {
+          e.stopPropagation()
+          onChange(Math.max(0, value - 1))
+        }}
+        className="flex h-9 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+      >
+        <ChevronDown size={18} />
+      </button>
+      <span className="min-w-5 text-center text-base font-semibold tabular-nums">{value}</span>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label="Aumentar pontos"
+        title="Pontos de participação"
+        onClick={(e) => {
+          e.stopPropagation()
+          onChange(value + 1)
+        }}
+        className="flex h-9 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+      >
+        <ChevronUp size={18} />
+      </button>
+    </span>
   )
 }
 

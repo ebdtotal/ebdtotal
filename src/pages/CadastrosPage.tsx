@@ -44,7 +44,9 @@ function precisaAcessoApp(tipo: TipoPessoa) {
 }
 
 export function CadastrosPage() {
-  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, removePessoa } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, removePessoa, usuario, ehProfessor } = useStore()
+  const podeCadastrar =
+    usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [filtros, setFiltros] = useState({
     regional: '',
     congregacao: '',
@@ -106,12 +108,20 @@ export function CadastrosPage() {
     <div>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Cadastros</h1>
-          <p className="text-sm text-muted">Lista de registros e suas respectivas congregações. No cadastro, defina o login do app.</p>
+          <h1 className="text-2xl font-semibold text-ink">{ehProfessor ? 'Turma' : 'Cadastros'}</h1>
+          <p className="text-sm text-muted">
+            {ehProfessor
+              ? 'Alunos da sua turma. Somente o master e o superintendente cadastram.'
+              : podeCadastrar
+                ? 'Lista de registros e suas respectivas congregações. No cadastro, defina o login do app.'
+                : 'Lista de registros da congregação. Somente o master e o superintendente cadastram.'}
+          </p>
         </div>
-        <PrimaryButton onClick={() => setEditing(emptyForm(escolasVisiveis[0]?.id ?? ''))}>
-          <Plus size={16} /> Novo cadastro
-        </PrimaryButton>
+        {podeCadastrar ? (
+          <PrimaryButton onClick={() => setEditing(emptyForm(escolasVisiveis[0]?.id ?? ''))}>
+            <Plus size={16} /> Novo cadastro
+          </PrimaryButton>
+        ) : null}
       </div>
 
       {acessoSalvo ? (
@@ -217,12 +227,16 @@ export function CadastrosPage() {
                         <UserRoundSearch size={15} />
                       </Link>
                     ) : null}
-                    <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(p)}>
-                      <Pencil size={15} />
-                    </button>
-                    <button type="button" className="text-muted hover:text-red-600" onClick={() => removePessoa(p.id)}>
-                      <Trash2 size={15} />
-                    </button>
+                    {podeCadastrar ? (
+                      <>
+                        <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(p)}>
+                          <Pencil size={15} />
+                        </button>
+                        <button type="button" className="text-muted hover:text-red-600" onClick={() => removePessoa(p.id)}>
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -231,17 +245,19 @@ export function CadastrosPage() {
         </div>
       </section>
 
-      <PessoaModal
-        pessoa={editing}
-        onClose={() => setEditing(null)}
-        onSave={(p, acesso) => {
-          savePessoa(p, acesso)
-          if (acesso?.username && acesso.senha) {
-            setAcessoSalvo({ nome: p.nome, username: acesso.username, senha: acesso.senha })
-          }
-          setEditing(null)
-        }}
-      />
+      {podeCadastrar ? (
+        <PessoaModal
+          pessoa={editing}
+          onClose={() => setEditing(null)}
+          onSave={(p, acesso) => {
+            savePessoa(p, acesso)
+            if (acesso?.username && acesso.senha) {
+              setAcessoSalvo({ nome: p.nome, username: acesso.username, senha: acesso.senha })
+            }
+            setEditing(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

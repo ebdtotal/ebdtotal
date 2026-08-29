@@ -6,7 +6,9 @@ import { FAIXAS_ETARIAS, type FaixaEtaria, type TurmaCadastro } from '../lib/typ
 import { uid } from '../lib/utils'
 
 export function TurmasPage() {
-  const { state, escolasVisiveis, saveTurma, removeTurma, podeVerTudo } = useStore()
+  const { state, escolasVisiveis, saveTurma, removeTurma, podeVerTudo, usuario } = useStore()
+  const podeCadastrar =
+    usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [editing, setEditing] = useState<TurmaCadastro | null>(null)
   const turmas = useMemo(() => {
     const ids = new Set(escolasVisiveis.map((e) => e.id))
@@ -18,9 +20,13 @@ export function TurmasPage() {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Turmas</h1>
-          <p className="text-sm text-muted">Cadastre as classes de cada escola. Depois vincule alunos e professores no Cadastros.</p>
+          <p className="text-sm text-muted">
+            {podeCadastrar
+              ? 'Cadastre as classes de cada escola. Depois vincule alunos e professores no Cadastros.'
+              : 'Classes da escola. Somente o master e o superintendente cadastram turmas.'}
+          </p>
         </div>
-        {podeVerTudo || escolasVisiveis.length > 0 ? (
+        {podeCadastrar && (podeVerTudo || escolasVisiveis.length > 0) ? (
           <PrimaryButton
             onClick={() =>
               setEditing({
@@ -56,12 +62,16 @@ export function TurmasPage() {
                     <td className="px-3 py-3">{escolasVisiveis.find((e) => e.id === t.escolaId)?.nome ?? t.escolaId}</td>
                     <td className="px-3 py-3">{t.faixaEtaria}</td>
                     <td className="px-3 py-3 text-right">
-                      <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(t)}>
-                        <Pencil size={15} />
-                      </button>
-                      <button type="button" className="text-muted hover:text-red-600" onClick={() => removeTurma(t.id)}>
-                        <Trash2 size={15} />
-                      </button>
+                      {podeCadastrar ? (
+                        <>
+                          <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(t)}>
+                            <Pencil size={15} />
+                          </button>
+                          <button type="button" className="text-muted hover:text-red-600" onClick={() => removeTurma(t.id)}>
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -71,6 +81,7 @@ export function TurmasPage() {
         )}
       </section>
 
+      {podeCadastrar ? (
       <Modal open={!!editing} title={editing ? 'Turma' : ''} onClose={() => setEditing(null)}>
         {editing ? (
           <form
@@ -109,6 +120,7 @@ export function TurmasPage() {
           </form>
         ) : null}
       </Modal>
+      ) : null}
     </div>
   )
 }

@@ -16,7 +16,6 @@ import {
   MessageCircle,
   NotebookText,
   Settings,
-  Sparkles,
   Target,
   Trophy,
   UserRound,
@@ -43,7 +42,6 @@ const ICONS: Record<string, LucideIcon> = {
   '/certificados': Award,
   '/calendario': CalendarRange,
   '/avaliacao': ClipboardList,
-  '/assistente': Sparkles,
   '/formacao': GraduationCap,
   '/relatorio': ClipboardList,
   '/aula': GraduationCap,
@@ -73,7 +71,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     ausentesRecentes(state, ids).length + aniversariantes(pessoasVisiveis, 7).length
 
   return (
-    <div className="flex h-full min-h-[var(--app-min-h,100dvh)] flex-col bg-page pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">
+    <div className="app-navy flex h-full min-h-[var(--app-min-h,100dvh)] flex-col pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-navy pt-[env(safe-area-inset-top)] text-white lg:flex">
         <div className="px-4 py-5">
           <div className="rounded-xl bg-white px-3 py-3">

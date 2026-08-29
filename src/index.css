@@ -57,9 +57,36 @@ html.site-publico #root {
 
 input,
 select,
-textarea,
+textarea {
+  font-family: inherit;
+  font-size: 16px;
+}
+
 button {
   font-family: inherit;
+}
+
+.app-navy {
+  --color-ink: #f4f7fb;
+  --color-muted: #b8c4d6;
+  --color-line: #2a425c;
+  --color-page: #1c334f;
+  background: var(--color-navy);
+  color: var(--color-ink);
+}
+
+.app-navy header,
+.app-navy nav.fixed,
+.app-navy .bg-white,
+.app-navy .bg-white\/95 {
+  --color-ink: #1f2a3d;
+  --color-muted: #6b778c;
+  --color-line: #e4e8ee;
+  --color-page: #eef1f5;
+}
+
+.app-navy .bg-white {
+  color: #1f2a3d;
 }
 
 .table-wrap {

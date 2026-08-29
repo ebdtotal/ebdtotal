@@ -7,7 +7,6 @@ import { destinoInicial, perfilDe, rotaPermitida } from './lib/perfis'
 import { useStore } from './lib/store'
 import { AlertasPage } from './pages/AlertasPage'
 import { AssinePage } from './pages/AssinePage'
-import { AssistentePage } from './pages/AssistentePage'
 import { AvaliacaoPage } from './pages/AvaliacaoPage'
 import { AvisosPage } from './pages/AvisosPage'
 import { CadastrosPage } from './pages/CadastrosPage'
@@ -162,7 +161,6 @@ export default function App() {
       <Route path="/metas" element={<Staff><MetasPage /></Staff>} />
       <Route path="/alunos/:id" element={<Staff><FichaAlunoPage /></Staff>} />
       <Route path="/avaliacao" element={<Staff><AvaliacaoPage /></Staff>} />
-      <Route path="/assistente" element={<Staff><AssistentePage /></Staff>} />
       <Route path="/formacao" element={<Staff><FormacaoPage /></Staff>} />
       <Route path="/relatorio" element={<Staff><RelatorioPage /></Staff>} />
       <Route path="/relatorio/:escolaId" element={<Staff><RelatorioFilialPage /></Staff>} />
