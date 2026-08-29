@@ -9,6 +9,23 @@ if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
   header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
 
+$origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+if ($origin !== '' && (
+  preg_match('#^https?://localhost(:\d+)?$#i', $origin) ||
+  preg_match('#^https?://127\.0\.0\.1(:\d+)?$#i', $origin) ||
+  in_array($origin, ['capacitor://localhost', 'ionic://localhost', 'https://ebdtotal.com', 'http://ebdtotal.com'], true)
+)) {
+  header("Access-Control-Allow-Origin: $origin");
+  header('Access-Control-Allow-Headers: Authorization, Content-Type');
+  header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
+  header('Access-Control-Max-Age: 86400');
+  header('Vary: Origin');
+}
+if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) === 'OPTIONS') {
+  http_response_code(204);
+  exit;
+}
+
 function json_ok($data, int $code = 200): void {
   http_response_code($code);
   echo json_encode($data, JSON_UNESCAPED_UNICODE);

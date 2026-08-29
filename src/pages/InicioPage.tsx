@@ -10,7 +10,7 @@ export function InicioPage() {
   if (perfil === 'aluno') return null
   const atalhos = ATALHOS[perfil]
   const escola = escolasVisiveis[0]
-  const avisos = [...state.avisos]
+  const avisos = [...(state.avisos ?? [])]
     .filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
     .sort((a, b) => b.data.localeCompare(a.data))
     .slice(0, 3)

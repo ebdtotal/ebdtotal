@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import { apiEsqueciSenha } from '../lib/api'
+import { ehAppNativo } from '../lib/native'
 import { destinoInicial } from '../lib/perfis'
 import { useStore } from '../lib/store'
 
@@ -103,17 +104,21 @@ export function LoginPage() {
             </button>
           </form>
         )}
-        <p className="mt-5 text-center text-sm text-muted">
-          Ainda não é cliente?{' '}
-          <Link to="/assine" className="font-semibold text-navy">
-            Assinar o EDB Total
-          </Link>
-        </p>
-        <p className="mt-2 text-center text-sm">
-          <Link to="/" className="text-navy">
-            Voltar ao site
-          </Link>
-        </p>
+        {ehAppNativo() ? null : (
+          <>
+            <p className="mt-5 text-center text-sm text-muted">
+              Ainda não é cliente?{' '}
+              <Link to="/assine" className="font-semibold text-navy">
+                Assinar o EDB Total
+              </Link>
+            </p>
+            <p className="mt-2 text-center text-sm">
+              <Link to="/" className="text-navy">
+                Voltar ao site
+              </Link>
+            </p>
+          </>
+        )}
         <p className="mt-3 text-center text-xs text-muted">
           <Link to="/privacidade" className="underline">
             Privacidade

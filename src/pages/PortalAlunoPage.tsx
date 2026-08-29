@@ -13,7 +13,7 @@ export function PortalAlunoPage() {
   const hoje = toISODate(lastSunday())
   const licao = licaoDaData(state.licoes, state.eventos, hoje)
   const nivers = aniversariantes(state.pessoas.filter((p) => p.escolaId === usuario?.escolaId), 14)
-  const avisos = state.avisos.filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
+  const avisos = (state.avisos ?? []).filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
   const certs = state.certificados.filter((c) => c.pessoaId === pessoa?.id)
   const quizzes = state.avaliacoes.filter((a) => a.turma === pessoa?.turma)
   const meta = usuario?.escolaId ? metaDaEscola(state, usuario.escolaId) : null

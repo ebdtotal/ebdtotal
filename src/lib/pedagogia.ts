@@ -184,6 +184,22 @@ export function hidratarLicoes(state: AppState): AppState {
 export function hidratarEstado(state: AppState): AppState {
   const next = hidratarLicoes({
     ...state,
+    escolas: state.escolas ?? [],
+    pessoas: state.pessoas ?? [],
+    turmas: state.turmas ?? [],
+    usuarios: state.usuarios ?? [],
+    setores: state.setores ?? [],
+    relatorios: state.relatorios ?? [],
+    lancamentos: state.lancamentos ?? [],
+    licoes: state.licoes ?? [],
+    eventos: state.eventos ?? [],
+    avaliacoes: state.avaliacoes ?? [],
+    metas: state.metas ?? [],
+    avisos: state.avisos ?? [],
+    desafios: state.desafios ?? [],
+    certificados: state.certificados ?? [],
+    cursos: state.cursos ?? [],
+    progressos: state.progressos ?? [],
     licoesRemovidas: state.licoesRemovidas ?? [],
     modeloCertificado: state.modeloCertificado?.texto ? { ...MODELO_CERTIFICADO_PADRAO, ...state.modeloCertificado } : MODELO_CERTIFICADO_PADRAO,
   })

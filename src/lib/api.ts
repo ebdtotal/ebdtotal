@@ -1,4 +1,11 @@
+import { Capacitor } from '@capacitor/core'
+
 const TOKEN_KEY = 'ebd-token'
+export const SITE_URL = 'https://ebdtotal.com'
+
+export function apiRoot(): string {
+  return Capacitor.isNativePlatform() ? `${SITE_URL}/api` : '/api'
+}
 
 export function apiToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY)
@@ -14,8 +21,14 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (init.body) headers['Content-Type'] = 'application/json'
   const token = apiToken()
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`/api/${path}`, { ...init, headers })
-  const data = (await res.json().catch(() => ({}))) as T & { erro?: string }
+  const res = await fetch(`${apiRoot()}/${path}`, { ...init, headers })
+  const raw = await res.text()
+  let data = {} as T & { erro?: string }
+  try {
+    data = JSON.parse(raw) as T & { erro?: string }
+  } catch {
+    throw new Error('Falha na conexão com o servidor.')
+  }
   if (!res.ok) throw new Error(data.erro || 'Falha na conexão com o servidor.')
   return data
 }

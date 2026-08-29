@@ -17,6 +17,7 @@ import {
   apiToken,
   setApiToken,
 } from './api'
+import { ehAppNativo } from './native'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
   AppState,
@@ -74,8 +75,16 @@ function loadState(): AppState {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
+function cacheLocal(state: AppState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    /* quota do WebView */
+  }
+}
+
 function persist(state: AppState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  cacheLocal(state)
   if (!apiToken()) return
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
@@ -234,13 +243,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>, substituirTudo: boolean) {
-      const raw = (remote.state as AppState | null) ?? createEmptyIgrejaState()
+      const raw = {
+        ...createEmptyIgrejaState(),
+        ...((remote.state as AppState | null) ?? {}),
+      }
       const hydrated = hidratarEstado({ ...raw, sessaoId: remote.usuarioId })
       if (catalogoCresceu(raw, hydrated)) persist(hydrated)
       if (substituirTudo) {
         setState((prev) => {
           const next = { ...hydrated, sessaoId: prev.sessaoId ?? remote.usuarioId }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+          cacheLocal(next)
           return next
         })
         return
@@ -257,7 +269,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           licoesRemovidas: hydrated.licoesRemovidas ?? prev.licoesRemovidas,
           cursos: Array.isArray(hydrated.cursos) ? hydrated.cursos : prev.cursos,
         }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        cacheLocal(next)
         return next
       })
     }
@@ -319,10 +331,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, senha: string) => {
     try {
       const res = await apiLogin(username, senha)
+      if (!res?.token || !res.usuario?.id) return 'Falha na conexão com o servidor.'
       setApiToken(res.token)
       const remote = await apiGetState()
-      let next = (remote.state as AppState | null) ?? createEmptyIgrejaState()
-      if (!Array.isArray(next.turmas)) next = { ...next, turmas: [] }
+      let next = hidratarEstado({
+        ...createEmptyIgrejaState(),
+        ...((remote.state as AppState | null) ?? {}),
+      })
       const u: Usuario = {
         id: res.usuario.id,
         nome: res.usuario.nome,
@@ -347,6 +362,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setState(next)
       return null
     } catch (err) {
+      if (ehAppNativo()) {
+        return err instanceof Error ? err.message : 'Não foi possível conectar. Verifique a internet.'
+      }
       const found = state.usuarios.find(
         (x) => x.username.toLowerCase() === username.trim().toLowerCase() && x.senha === senha,
       )

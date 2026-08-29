@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { PortalLayout } from './components/PortalLayout'
+import { ehAppNativo } from './lib/native'
 import { destinoInicial, perfilDe, rotaPermitida } from './lib/perfis'
 import { useStore } from './lib/store'
 import { AlertasPage } from './pages/AlertasPage'
@@ -145,7 +146,7 @@ function SharedCertificados() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={ehAppNativo() ? <Navigate to="/login" replace /> : <LandingPage />} />
       <Route path="/assine" element={<AssinePage />} />
       <Route path="/privacidade" element={<PrivacidadePage />} />
       <Route path="/termos" element={<TermosPage />} />

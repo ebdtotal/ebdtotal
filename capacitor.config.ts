@@ -7,12 +7,16 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
+    allowNavigation: ['ebdtotal.com', 'www.ebdtotal.com'],
   },
   ios: {
     contentInset: 'automatic',
     scheme: 'EDBTotal',
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     StatusBar: {
       style: 'DARK',
       backgroundColor: '#152238',
