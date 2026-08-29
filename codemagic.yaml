@@ -3,6 +3,14 @@ workflows:
     name: EDB Total App Store
     instance_type: mac_mini_m2
     max_build_duration: 75
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
     environment:
       groups:
         - app_store_credentials
