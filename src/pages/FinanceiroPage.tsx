@@ -1,6 +1,6 @@
 import { Download, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, DateInput, Confirmacao, inputClass } from '../components/ui'
 import { exportToExcel } from '../lib/excel'
 import { useStore } from '../lib/store'
 import { nomeEscola } from '../lib/stats'
@@ -20,6 +20,7 @@ export function FinanceiroPage() {
   const [ano, setAno] = useState(anoAtual)
   const [tipo, setTipo] = useState('')
   const [editing, setEditing] = useState<LancamentoFinanceiro | null>(null)
+  const [excluirLanc, setExcluirLanc] = useState<LancamentoFinanceiro | null>(null)
   const ids = useMemo(() => new Set(escolasVisiveis.map((e) => e.id)), [escolasVisiveis])
 
   const lista = state.lancamentos
@@ -104,7 +105,7 @@ export function FinanceiroPage() {
                     {l.tipo === 'despesa' ? '−' : '+'}{moneyBR(l.valor)}
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <button type="button" className="text-muted hover:text-red-600" onClick={() => removeLancamento(l.id)}>
+                    <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirLanc(l)}>
                       <Trash2 size={15} />
                     </button>
                   </td>
@@ -143,6 +144,16 @@ export function FinanceiroPage() {
           </form>
         ) : null}
       </Modal>
+      <Confirmacao
+        open={!!excluirLanc}
+        titulo="Excluir lançamento"
+        texto={`Excluir o lançamento “${excluirLanc?.descricao ?? ''}”?`}
+        onCancel={() => setExcluirLanc(null)}
+        onConfirm={() => {
+          if (excluirLanc) removeLancamento(excluirLanc.id)
+          setExcluirLanc(null)
+        }}
+      />
     </div>
   )
 }

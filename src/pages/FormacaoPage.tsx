@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { GraduationCap, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { useStore } from '../lib/store'
 import type { CursoAula, CursoProfessor } from '../lib/types'
 import { uid, youtubeEmbed } from '../lib/utils'
@@ -12,6 +12,7 @@ export function FormacaoPage() {
   const podeEditar = podeEditarLicoes
   const [aberto, setAberto] = useState(state.cursos[0]?.id ?? '')
   const [editando, setEditando] = useState<CursoProfessor | null>(null)
+  const [excluirCurso, setExcluirCurso] = useState<CursoProfessor | null>(null)
   const curso = state.cursos.find((c) => c.id === aberto) ?? state.cursos[0]
 
   return (
@@ -81,13 +82,7 @@ export function FormacaoPage() {
                   <GhostButton onClick={() => setEditando(curso)}>
                     <Pencil size={16} /> Editar
                   </GhostButton>
-                  <GhostButton
-                    onClick={() => {
-                      if (!confirm(`Excluir o módulo “${curso.titulo}”?`)) return
-                      removeCurso(curso.id)
-                      setAberto(state.cursos.find((c) => c.id !== curso.id)?.id ?? '')
-                    }}
-                  >
+                  <GhostButton onClick={() => setExcluirCurso(curso)}>
                     <Trash2 size={16} /> Excluir
                   </GhostButton>
                 </div>
@@ -143,6 +138,20 @@ export function FormacaoPage() {
           saveCurso(c)
           setAberto(c.id)
           setEditando(null)
+        }}
+      />
+      <Confirmacao
+        open={!!excluirCurso}
+        titulo="Excluir módulo"
+        texto={`Excluir o módulo “${excluirCurso?.titulo ?? ''}”?`}
+        onCancel={() => setExcluirCurso(null)}
+        onConfirm={() => {
+          if (excluirCurso) {
+            const id = excluirCurso.id
+            removeCurso(id)
+            setAberto(state.cursos.find((c) => c.id !== id)?.id ?? '')
+          }
+          setExcluirCurso(null)
         }}
       />
     </div>

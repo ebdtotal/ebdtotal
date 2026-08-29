@@ -65,6 +65,15 @@ function loadState(): AppState {
       licoesRemovidas: parsed.licoesRemovidas ?? seed.licoesRemovidas,
       avaliacoesRemovidas: parsed.avaliacoesRemovidas ?? seed.avaliacoesRemovidas,
       certificadosRemovidos: parsed.certificadosRemovidos ?? seed.certificadosRemovidos,
+      pessoasRemovidas: parsed.pessoasRemovidas ?? seed.pessoasRemovidas,
+      escolasRemovidas: parsed.escolasRemovidas ?? seed.escolasRemovidas,
+      turmasRemovidas: parsed.turmasRemovidas ?? seed.turmasRemovidas,
+      usuariosRemovidos: parsed.usuariosRemovidos ?? seed.usuariosRemovidos,
+      lancamentosRemovidos: parsed.lancamentosRemovidos ?? seed.lancamentosRemovidos,
+      avisosRemovidos: parsed.avisosRemovidos ?? seed.avisosRemovidos,
+      eventosRemovidos: parsed.eventosRemovidos ?? seed.eventosRemovidos,
+      setoresRemovidos: parsed.setoresRemovidos ?? seed.setoresRemovidos,
+      cursosRemovidos: parsed.cursosRemovidos ?? seed.cursosRemovidos,
       cursos: parsed.cursos?.length ? parsed.cursos : seed.cursos,
       progressos: parsed.progressos ?? seed.progressos,
       rankingCompetitivo: parsed.rankingCompetitivo ?? false,
@@ -232,6 +241,14 @@ function bump(escola: Escola, status: Pessoa['status'], delta: number): Escola {
   return { ...escola, inativos: Math.max(0, escola.inativos + delta) }
 }
 
+function marcarRemovidos(lista: string[] | undefined, ids: string[]): string[] {
+  return [...new Set([...(lista ?? []), ...ids.filter(Boolean)])]
+}
+
+function tirarRemovido(lista: string[] | undefined, id: string): string[] {
+  return (lista ?? []).filter((x) => x !== id)
+}
+
 function aplicarPessoaNoEstado(prev: AppState, pessoa: Pessoa, acesso?: AcessoApp | null): AppState {
   const agora = agoraIso()
   const gravar: Pessoa = { ...pessoa, updatedAt: agora }
@@ -258,7 +275,15 @@ function aplicarPessoaNoEstado(prev: AppState, pessoa: Pessoa, acesso?: AcessoAp
     )
   }
   const turmas = garantirTurma(prev.turmas ?? [], gravar)
-  return { ...prev, pessoas, escolas, usuarios, turmas }
+  return {
+    ...prev,
+    pessoas,
+    escolas,
+    usuarios,
+    turmas,
+    pessoasRemovidas: tirarRemovido(prev.pessoasRemovidas, gravar.id),
+    usuariosRemovidos: (prev.usuariosRemovidos ?? []).filter((id) => !usuarios.some((u) => u.id === id && u.pessoaId === gravar.id)),
+  }
 }
 
 type StoreValue = {
@@ -485,8 +510,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const escolas = target
         ? prev.escolas.map((e) => (e.id === target.escolaId ? bump(e, target.status, -1) : e))
         : prev.escolas
+      const usuariosFora = prev.usuarios.filter((u) => u.pessoaId === id).map((u) => u.id)
       const usuarios = prev.usuarios.filter((u) => u.pessoaId !== id)
-      return { ...prev, pessoas, escolas, usuarios }
+      return {
+        ...prev,
+        pessoas,
+        escolas,
+        usuarios,
+        pessoasRemovidas: marcarRemovidos(prev.pessoasRemovidas, [id]),
+        usuariosRemovidos: marcarRemovidos(prev.usuariosRemovidos, usuariosFora),
+      }
     }, true)
   }, [commit])
 
@@ -496,8 +529,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const escolas = exists
         ? prev.escolas.map((e) => (e.id === escola.id ? escola : e))
         : [...prev.escolas, escola]
-      return { ...prev, escolas }
-    })
+      return {
+        ...prev,
+        escolas,
+        escolasRemovidas: tirarRemovido(prev.escolasRemovidas, escola.id),
+      }
+    }, true)
   }, [commit])
 
   const importarEscolas = useCallback((novas: Escola[]) => {
@@ -508,26 +545,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const exists = escolas.some((e) => e.id === escola.id)
         escolas = exists ? escolas.map((e) => (e.id === escola.id ? escola : e)) : [...escolas, escola]
       }
-      return { ...prev, escolas }
+      return {
+        ...prev,
+        escolas,
+        escolasRemovidas: (prev.escolasRemovidas ?? []).filter((id) => !novas.some((e) => e.id === id)),
+      }
     }, true)
   }, [commit])
 
   const removeEscola = useCallback((id: string) => {
-    commit((prev) => ({
-      ...prev,
-      escolas: prev.escolas.filter((e) => e.id !== id),
-      pessoas: prev.pessoas.filter((p) => p.escolaId !== id),
-      turmas: (prev.turmas ?? []).filter((t) => t.escolaId !== id),
-      relatorios: prev.relatorios.filter((r) => r.escolaId !== id),
-    }))
+    commit((prev) => {
+      const pessoasFora = prev.pessoas.filter((p) => p.escolaId === id)
+      const pessoaIds = pessoasFora.map((p) => p.id)
+      const turmaIds = (prev.turmas ?? []).filter((t) => t.escolaId === id).map((t) => t.id)
+      const usuarioIds = prev.usuarios.filter((u) => u.pessoaId && pessoaIds.includes(u.pessoaId)).map((u) => u.id)
+      return {
+        ...prev,
+        escolas: prev.escolas.filter((e) => e.id !== id),
+        pessoas: prev.pessoas.filter((p) => p.escolaId !== id),
+        turmas: (prev.turmas ?? []).filter((t) => t.escolaId !== id),
+        relatorios: prev.relatorios.filter((r) => r.escolaId !== id),
+        usuarios: prev.usuarios.filter((u) => !(u.pessoaId && pessoaIds.includes(u.pessoaId))),
+        escolasRemovidas: marcarRemovidos(prev.escolasRemovidas, [id]),
+        pessoasRemovidas: marcarRemovidos(prev.pessoasRemovidas, pessoaIds),
+        turmasRemovidas: marcarRemovidos(prev.turmasRemovidas, turmaIds),
+        usuariosRemovidos: marcarRemovidos(prev.usuariosRemovidos, usuarioIds),
+      }
+    }, true)
   }, [commit])
 
   const saveTurma = useCallback((turma: TurmaCadastro) => {
     commit((prev) => {
       const turmas = prev.turmas ?? []
       const exists = turmas.some((t) => t.id === turma.id)
-      return { ...prev, turmas: exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma] }
-    })
+      return {
+        ...prev,
+        turmas: exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma],
+        turmasRemovidas: tirarRemovido(prev.turmasRemovidas, turma.id),
+      }
+    }, true)
   }, [commit])
 
   const importarTurmas = useCallback((novas: TurmaCadastro[]) => {
@@ -538,12 +594,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const exists = turmas.some((t) => t.id === turma.id)
         turmas = exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma]
       }
-      return { ...prev, turmas }
+      return {
+        ...prev,
+        turmas,
+        turmasRemovidas: (prev.turmasRemovidas ?? []).filter((id) => !novas.some((t) => t.id === id)),
+      }
     }, true)
   }, [commit])
 
   const removeTurma = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, turmas: (prev.turmas ?? []).filter((t) => t.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        turmas: (prev.turmas ?? []).filter((t) => t.id !== id),
+        turmasRemovidas: marcarRemovidos(prev.turmasRemovidas, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const saveRelatorio = useCallback((relatorio: RelatorioDiario) => {
@@ -572,7 +639,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         lancamentos = lancamentos.filter((l) => l.id !== lancId)
       }
-      return { ...prev, relatorios, lancamentos }
+      return {
+        ...prev,
+        relatorios,
+        lancamentos,
+        lancamentosRemovidos:
+          payload.oferta > 0
+            ? tirarRemovido(prev.lancamentosRemovidos, lancId)
+            : marcarRemovidos(prev.lancamentosRemovidos, [lancId]),
+      }
     }, true)
   }, [commit])
 
@@ -582,12 +657,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const lancamentos = exists
         ? prev.lancamentos.map((l) => (l.id === lancamento.id ? lancamento : l))
         : [...prev.lancamentos, lancamento]
-      return { ...prev, lancamentos }
-    })
+      return {
+        ...prev,
+        lancamentos,
+        lancamentosRemovidos: tirarRemovido(prev.lancamentosRemovidos, lancamento.id),
+      }
+    }, true)
   }, [commit])
 
   const removeLancamento = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, lancamentos: prev.lancamentos.filter((l) => l.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        lancamentos: prev.lancamentos.filter((l) => l.id !== id),
+        lancamentosRemovidos: marcarRemovidos(prev.lancamentosRemovidos, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const setWhatsapp = useCallback((numero: string) => {
@@ -609,10 +695,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const removeSetor = useCallback((id: string) => {
-    commit((prev) => ({
-      ...prev,
-      setores: prev.setores.filter((s) => s.id !== id),
-    }))
+    commit(
+      (prev) => ({
+        ...prev,
+        setores: prev.setores.filter((s) => s.id !== id),
+        setoresRemovidos: marcarRemovidos(prev.setoresRemovidos, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const addUsuarioAoSetor = useCallback((setorId: string, usuarioId: string) => {
@@ -641,7 +731,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const usuarios = exists
         ? prev.usuarios.map((u) => (u.id === usuarioNovo.id ? usuarioNovo : u))
         : [...prev.usuarios, usuarioNovo]
-      return { ...prev, usuarios }
+      return {
+        ...prev,
+        usuarios,
+        usuariosRemovidos: tirarRemovido(prev.usuariosRemovidos, usuarioNovo.id),
+      }
     }, true)
   }, [commit])
 
@@ -650,12 +744,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const eventos = prev.eventos.some((e) => e.id === evento.id)
         ? prev.eventos.map((e) => (e.id === evento.id ? evento : e))
         : [...prev.eventos, evento]
-      return { ...prev, eventos }
-    })
+      return {
+        ...prev,
+        eventos,
+        eventosRemovidos: tirarRemovido(prev.eventosRemovidos, evento.id),
+      }
+    }, true)
   }, [commit])
 
   const removeEvento = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, eventos: prev.eventos.filter((e) => e.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        eventos: prev.eventos.filter((e) => e.id !== id),
+        eventosRemovidos: marcarRemovidos(prev.eventosRemovidos, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const saveLicao = useCallback((licao: Licao, data?: string) => {
@@ -720,7 +825,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       licoesRemovidas: (prev.licoesRemovidas ?? []).includes(id)
         ? prev.licoesRemovidas
         : [...(prev.licoesRemovidas ?? []), id],
-    }))
+    }), true)
   }, [commit])
 
   const saveAviso = useCallback((aviso: Aviso) => {
@@ -728,12 +833,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const avisos = prev.avisos.some((a) => a.id === aviso.id)
         ? prev.avisos.map((a) => (a.id === aviso.id ? aviso : a))
         : [aviso, ...prev.avisos]
-      return { ...prev, avisos }
-    })
+      return {
+        ...prev,
+        avisos,
+        avisosRemovidos: tirarRemovido(prev.avisosRemovidos, aviso.id),
+      }
+    }, true)
   }, [commit])
 
   const removeAviso = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, avisos: prev.avisos.filter((a) => a.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        avisos: prev.avisos.filter((a) => a.id !== id),
+        avisosRemovidos: marcarRemovidos(prev.avisosRemovidos, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const saveCertificado = useCallback((certificado: Certificado) => {
@@ -833,16 +949,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cursos = prev.cursos.some((c) => c.id === curso.id)
         ? prev.cursos.map((c) => (c.id === curso.id ? curso : c))
         : [...prev.cursos, curso]
-      return { ...prev, cursos }
-    })
+      return {
+        ...prev,
+        cursos,
+        cursosRemovidos: tirarRemovido(prev.cursosRemovidos, curso.id),
+      }
+    }, true)
   }, [commit])
 
   const removeCurso = useCallback((id: string) => {
-    commit((prev) => ({
-      ...prev,
-      cursos: prev.cursos.filter((c) => c.id !== id),
-      progressos: prev.progressos.filter((p) => p.cursoId !== id),
-    }))
+    commit(
+      (prev) => ({
+        ...prev,
+        cursos: prev.cursos.filter((c) => c.id !== id),
+        progressos: prev.progressos.filter((p) => p.cursoId !== id),
+        cursosRemovidos: marcarRemovidos(prev.cursosRemovidos, [id]),
+      }),
+      true,
+    )
   }, [commit])
 
   const resetDemo = useCallback(() => {

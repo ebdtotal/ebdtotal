@@ -1,6 +1,6 @@
 import { MoreVertical, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { ROTULO_PAPEL } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { PAPEIS, type Papel, type Usuario } from '../lib/types'
@@ -23,6 +23,7 @@ export function ConfiguracoesPage() {
   const [menuSetor, setMenuSetor] = useState<string | null>(null)
   const [menuUser, setMenuUser] = useState<string | null>(null)
   const [novoSetor, setNovoSetor] = useState(false)
+  const [excluirSetorId, setExcluirSetorId] = useState<string | null>(null)
   const [nomeSetor, setNomeSetor] = useState('')
   const [addUserSetor, setAddUserSetor] = useState<string | null>(null)
   const [userForm, setUserForm] = useState<Usuario | null>(null)
@@ -105,7 +106,7 @@ export function ConfiguracoesPage() {
                         type="button"
                         className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-page"
                         onClick={() => {
-                          removeSetor(setor.id)
+                          setExcluirSetorId(setor.id)
                           setMenuSetor(null)
                         }}
                       >
@@ -266,6 +267,16 @@ export function ConfiguracoesPage() {
           </form>
         ) : null}
       </Modal>
+      <Confirmacao
+        open={!!excluirSetorId}
+        titulo="Excluir setor"
+        texto="Excluir este setor? Os usuários não são apagados, só saem do agrupamento."
+        onCancel={() => setExcluirSetorId(null)}
+        onConfirm={() => {
+          if (excluirSetorId) removeSetor(excluirSetorId)
+          setExcluirSetorId(null)
+        }}
+      />
     </div>
   )
 }

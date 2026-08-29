@@ -214,14 +214,45 @@ export function hidratarEstado(state: AppState): AppState {
     licoesRemovidas: state.licoesRemovidas ?? [],
     avaliacoesRemovidas: state.avaliacoesRemovidas ?? [],
     certificadosRemovidos: state.certificadosRemovidos ?? [],
+    pessoasRemovidas: state.pessoasRemovidas ?? [],
+    escolasRemovidas: state.escolasRemovidas ?? [],
+    turmasRemovidas: state.turmasRemovidas ?? [],
+    usuariosRemovidos: state.usuariosRemovidos ?? [],
+    lancamentosRemovidos: state.lancamentosRemovidos ?? [],
+    avisosRemovidos: state.avisosRemovidos ?? [],
+    eventosRemovidos: state.eventosRemovidos ?? [],
+    setoresRemovidos: state.setoresRemovidos ?? [],
+    cursosRemovidos: state.cursosRemovidos ?? [],
     modeloCertificado: state.modeloCertificado?.texto ? { ...MODELO_CERTIFICADO_PADRAO, ...state.modeloCertificado } : MODELO_CERTIFICADO_PADRAO,
   })
-  const avRem = new Set(next.avaliacoesRemovidas ?? [])
-  const certRem = new Set(next.certificadosRemovidos ?? [])
+  return aplicarTumbas(next)
+}
+
+function semRemovidos<T extends { id: string }>(lista: T[], ids?: string[]): T[] {
+  if (!ids?.length) return lista
+  const rem = new Set(ids)
+  return lista.filter((item) => !rem.has(item.id))
+}
+
+export function aplicarTumbas(state: AppState): AppState {
+  const remPessoas = new Set(state.pessoasRemovidas ?? [])
+  const remUsuarios = new Set(state.usuariosRemovidos ?? [])
   return {
-    ...next,
-    avaliacoes: next.avaliacoes.filter((a) => !avRem.has(a.id)),
-    certificados: next.certificados.filter((c) => !certRem.has(c.id)),
+    ...state,
+    pessoas: semRemovidos(state.pessoas ?? [], state.pessoasRemovidas),
+    escolas: semRemovidos(state.escolas ?? [], state.escolasRemovidas),
+    turmas: semRemovidos(state.turmas ?? [], state.turmasRemovidas),
+    usuarios: (state.usuarios ?? []).filter(
+      (u) => !remUsuarios.has(u.id) && !(u.pessoaId && remPessoas.has(u.pessoaId)),
+    ),
+    lancamentos: semRemovidos(state.lancamentos ?? [], state.lancamentosRemovidos),
+    avaliacoes: semRemovidos(state.avaliacoes ?? [], state.avaliacoesRemovidas),
+    avisos: semRemovidos(state.avisos ?? [], state.avisosRemovidos),
+    certificados: semRemovidos(state.certificados ?? [], state.certificadosRemovidos),
+    eventos: semRemovidos(state.eventos ?? [], state.eventosRemovidos),
+    licoes: semRemovidos(state.licoes ?? [], state.licoesRemovidas),
+    setores: semRemovidos(state.setores ?? [], state.setoresRemovidos),
+    cursos: semRemovidos(state.cursos ?? [], state.cursosRemovidos),
   }
 }
 

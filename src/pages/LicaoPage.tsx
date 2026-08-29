@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { DateInput, Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { DateInput, Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { catalogoDaData, catalogoDeLicao, copiarLicaoParaTurma, ehLicaoGeral, licaoDaTurma, licoesCatalogo } from '../lib/acompanhamento'
 import { nomeAulaPadrao, trimestreDe } from '../lib/pedagogia'
 import { useStore } from '../lib/store'
@@ -54,6 +54,7 @@ export function LicaoPage() {
     : undefined
   const evento = state.eventos.find((e) => e.licaoId === licaoCatalogo?.id)
   const [editando, setEditando] = useState<Licao | null>(null)
+  const [excluirLicao, setExcluirLicao] = useState(false)
   const [dataAula, setDataAula] = useState(hoje)
   const anos = useMemo(() => [...new Set(catalogo.map((l) => l.ano))].sort((a, b) => b - a), [catalogo])
   const [ano, setAno] = useState(licaoCatalogo?.ano ?? anos[0] ?? 2026)
@@ -149,14 +150,7 @@ export function LicaoPage() {
             <GhostButton onClick={() => abrirEdicao(licao)}>Editar conteúdo</GhostButton>
           ) : null}
           {podeEditarLicoes && ehLicaoGeral(licao) ? (
-            <GhostButton
-              onClick={() => {
-                if (confirm('Excluir esta aula do calendário? Professores e alunos deixam de vê-la.')) {
-                  removeLicao(licaoCatalogo.id)
-                  setParams({})
-                }
-              }}
-            >
+            <GhostButton onClick={() => setExcluirLicao(true)}>
               Excluir
             </GhostButton>
           ) : null}
@@ -349,6 +343,19 @@ export function LicaoPage() {
           setAno(l.ano)
           setTri(l.trimestre)
           if (ehLicaoGeral(l)) setParams({ id: l.id })
+        }}
+      />
+      <Confirmacao
+        open={excluirLicao}
+        titulo="Excluir aula"
+        texto="Excluir esta aula do calendário? Professores e alunos deixam de vê-la."
+        onCancel={() => setExcluirLicao(false)}
+        onConfirm={() => {
+          if (licaoCatalogo) {
+            removeLicao(licaoCatalogo.id)
+            setParams({})
+          }
+          setExcluirLicao(false)
         }}
       />
     </div>

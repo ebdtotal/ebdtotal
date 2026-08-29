@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { DateInput, Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { DateInput, Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { useStore } from '../lib/store'
 import type { Aviso } from '../lib/types'
 import { formatDateBR, toISODate, uid } from '../lib/utils'
@@ -7,6 +7,7 @@ import { formatDateBR, toISODate, uid } from '../lib/utils'
 export function AvisosPage() {
   const { state, usuario, podePublicarAvisos, ehAluno, saveAviso, removeAviso } = useStore()
   const [editando, setEditando] = useState<Aviso | null>(null)
+  const [excluirAviso, setExcluirAviso] = useState<Aviso | null>(null)
   const avisos = useMemo(
     () =>
       [...state.avisos]
@@ -60,13 +61,7 @@ export function AvisosPage() {
                 {podePublicarAvisos ? (
                   <div className="flex gap-2">
                     <GhostButton onClick={() => setEditando(a)}>Editar</GhostButton>
-                    <GhostButton
-                      onClick={() => {
-                        if (confirm('Excluir este aviso?')) removeAviso(a.id)
-                      }}
-                    >
-                      Excluir
-                    </GhostButton>
+                    <GhostButton onClick={() => setExcluirAviso(a)}>Excluir</GhostButton>
                   </div>
                 ) : null}
               </div>
@@ -81,6 +76,16 @@ export function AvisosPage() {
         onSave={(a) => {
           saveAviso(a)
           setEditando(null)
+        }}
+      />
+      <Confirmacao
+        open={!!excluirAviso}
+        titulo="Excluir aviso"
+        texto={`Excluir o aviso “${excluirAviso?.titulo ?? ''}”?`}
+        onCancel={() => setExcluirAviso(null)}
+        onConfirm={() => {
+          if (excluirAviso) removeAviso(excluirAviso.id)
+          setExcluirAviso(null)
         }}
       />
     </div>

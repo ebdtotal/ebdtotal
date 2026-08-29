@@ -1,7 +1,7 @@
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ImportacaoExcel } from '../components/ImportacaoExcel'
-import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { casarOpcao, celula, lerPlanilha } from '../lib/excel'
 import { useStore } from '../lib/store'
 import { FAIXAS_ETARIAS, type FaixaEtaria, type TurmaCadastro } from '../lib/types'
@@ -12,6 +12,7 @@ export function TurmasPage() {
   const podeCadastrar =
     usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [editing, setEditing] = useState<TurmaCadastro | null>(null)
+  const [excluirTurma, setExcluirTurma] = useState<TurmaCadastro | null>(null)
   const turmas = useMemo(() => {
     const ids = new Set(escolasVisiveis.map((e) => e.id))
     return (state.turmas ?? []).filter((t) => ids.has(t.escolaId))
@@ -114,7 +115,7 @@ export function TurmasPage() {
                           <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(t)}>
                             <Pencil size={15} />
                           </button>
-                          <button type="button" className="text-muted hover:text-red-600" onClick={() => removeTurma(t.id)}>
+                          <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirTurma(t)}>
                             <Trash2 size={15} />
                           </button>
                         </>
@@ -168,6 +169,16 @@ export function TurmasPage() {
         ) : null}
       </Modal>
       ) : null}
+      <Confirmacao
+        open={!!excluirTurma}
+        titulo="Excluir turma"
+        texto={`Excluir a turma “${excluirTurma?.nome ?? ''}”? Ela some da lista e não volta na sincronização.`}
+        onCancel={() => setExcluirTurma(null)}
+        onConfirm={() => {
+          if (excluirTurma) removeTurma(excluirTurma.id)
+          setExcluirTurma(null)
+        }}
+      />
     </div>
   )
 }

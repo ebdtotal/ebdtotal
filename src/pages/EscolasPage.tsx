@@ -1,7 +1,7 @@
 import { Check, Download, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ImportacaoExcel } from '../components/ImportacaoExcel'
-import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { casarOpcao, celula, exportToExcel, lerPlanilha } from '../lib/excel'
 import { useStore } from '../lib/store'
 import { STATUS_ESCOLA, type Escola, type StatusEscola } from '../lib/types'
@@ -12,6 +12,7 @@ export function EscolasPage() {
   const [busca, setBusca] = useState('')
   const [limite, setLimite] = useState('Todos')
   const [editing, setEditing] = useState<Escola | null>(null)
+  const [excluirEscola, setExcluirEscola] = useState<Escola | null>(null)
 
   const lista = useMemo(() => {
     const filtered = escolasVisiveis.filter((e) =>
@@ -173,7 +174,7 @@ export function EscolasPage() {
                       <Pencil size={15} />
                     </button>
                     {podeVerTudo ? (
-                      <button type="button" className="text-muted hover:text-red-600" onClick={() => removeEscola(e.id)}>
+                      <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirEscola(e)}>
                         <Trash2 size={15} />
                       </button>
                     ) : null}
@@ -191,6 +192,16 @@ export function EscolasPage() {
         onSave={(e) => {
           saveEscola(e)
           setEditing(null)
+        }}
+      />
+      <Confirmacao
+        open={!!excluirEscola}
+        titulo="Excluir escola"
+        texto={`Excluir “${excluirEscola?.nome ?? ''}”? Cadastros e turmas desta congregação também saem.`}
+        onCancel={() => setExcluirEscola(null)}
+        onConfirm={() => {
+          if (excluirEscola) removeEscola(excluirEscola.id)
+          setExcluirEscola(null)
         }}
       />
     </div>

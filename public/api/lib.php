@@ -239,6 +239,15 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'licoesRemovidas' => [],
     'avaliacoesRemovidas' => [],
     'certificadosRemovidos' => [],
+    'pessoasRemovidas' => [],
+    'escolasRemovidas' => [],
+    'turmasRemovidas' => [],
+    'usuariosRemovidos' => [],
+    'lancamentosRemovidos' => [],
+    'avisosRemovidos' => [],
+    'eventosRemovidos' => [],
+    'setoresRemovidos' => [],
+    'cursosRemovidos' => [],
     'cursos' => [],
     'progressos' => [],
     'rankingCompetitivo' => true,
@@ -548,7 +557,7 @@ function papel_do_tipo(string $tipo): ?string {
 }
 
 function stamp_missing_updated_at(array $state, string $ts): array {
-  $campos = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes'];
+  $campos = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos'];
   foreach ($campos as $campo) {
     if (!isset($state[$campo]) || !is_array($state[$campo])) continue;
     foreach ($state[$campo] as $i => $item) {
@@ -726,6 +735,8 @@ function sync_cadastros(PDO $pdo, string $tenantId, array $state): void {
 function mesclar_usuarios_banco(PDO $pdo, string $tenantId, array $state): array {
   $st = $pdo->prepare('SELECT id, nome, username, papel, escola_id, pessoa_id, turma, email FROM users WHERE tenant_id = ?');
   $st->execute([$tenantId]);
+  $remU = array_flip(unir_ids($state['usuariosRemovidos'] ?? null, []));
+  $remP = array_flip(unir_ids($state['pessoasRemovidas'] ?? null, []));
   $map = [];
   foreach ($state['usuarios'] ?? [] as $u) {
     $key = strtolower(trim((string)($u['username'] ?? '')));
@@ -733,6 +744,10 @@ function mesclar_usuarios_banco(PDO $pdo, string $tenantId, array $state): array
     $map[$key] = $u;
   }
   foreach ($st->fetchAll() as $row) {
+    $uidRow = (string)($row['id'] ?? '');
+    $pid = (string)($row['pessoa_id'] ?? '');
+    if ($uidRow !== '' && isset($remU[$uidRow])) continue;
+    if ($pid !== '' && isset($remP[$pid])) continue;
     $key = strtolower(trim((string)$row['username']));
     if ($key === '') continue;
     $atual = $map[$key] ?? [];
@@ -883,7 +898,7 @@ function merge_relatorios(array $old, array $new): array {
 
 function merge_state(array $old, array $new): array {
   $out = array_merge($old, $new);
-  $listas = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes'];
+  $listas = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos'];
   foreach ($listas as $campo) {
     $out[$campo] = merge_by_id(
       is_array($old[$campo] ?? null) ? $old[$campo] : [],
@@ -894,9 +909,9 @@ function merge_state(array $old, array $new): array {
     is_array($old['relatorios'] ?? null) ? $old['relatorios'] : [],
     is_array($new['relatorios'] ?? null) ? $new['relatorios'] : []
   );
-  $out['licoesRemovidas'] = unir_ids($old['licoesRemovidas'] ?? null, $new['licoesRemovidas'] ?? null);
-  $out['avaliacoesRemovidas'] = unir_ids($old['avaliacoesRemovidas'] ?? null, $new['avaliacoesRemovidas'] ?? null);
-  $out['certificadosRemovidos'] = unir_ids($old['certificadosRemovidos'] ?? null, $new['certificadosRemovidos'] ?? null);
+  foreach (campos_tombstone() as $_campo => $tumba) {
+    $out[$tumba] = unir_ids($old[$tumba] ?? null, $new[$tumba] ?? null);
+  }
   $removidas = array_flip($out['licoesRemovidas']);
   $licoes = [];
   foreach (is_array($out['licoes'] ?? null) ? $out['licoes'] : [] as $l) {
@@ -909,9 +924,7 @@ function merge_state(array $old, array $new): array {
   $out['licoes'] = deduplicar_licoes($licoes);
   foreach ($out['licoes'] as $l) unset($antes[(string)($l['id'] ?? '')]);
   $out['licoesRemovidas'] = array_values(array_unique(array_merge($out['licoesRemovidas'], array_keys($antes))));
-  $out['avaliacoes'] = filtrar_removidos(is_array($out['avaliacoes'] ?? null) ? $out['avaliacoes'] : [], $out['avaliacoesRemovidas']);
-  $out['certificados'] = filtrar_removidos(is_array($out['certificados'] ?? null) ? $out['certificados'] : [], $out['certificadosRemovidos']);
-  return $out;
+  return aplicar_tombstones($out);
 }
 
 function unir_ids($a, $b): array {
@@ -930,6 +943,41 @@ function filtrar_removidos(array $lista, array $ids): array {
     $out[] = $item;
   }
   return $out;
+}
+
+function campos_tombstone(): array {
+  return [
+    'pessoas' => 'pessoasRemovidas',
+    'escolas' => 'escolasRemovidas',
+    'turmas' => 'turmasRemovidas',
+    'usuarios' => 'usuariosRemovidos',
+    'lancamentos' => 'lancamentosRemovidos',
+    'avaliacoes' => 'avaliacoesRemovidas',
+    'avisos' => 'avisosRemovidos',
+    'certificados' => 'certificadosRemovidos',
+    'eventos' => 'eventosRemovidos',
+    'licoes' => 'licoesRemovidas',
+    'setores' => 'setoresRemovidos',
+    'cursos' => 'cursosRemovidos',
+  ];
+}
+
+function aplicar_tombstones(array $state): array {
+  foreach (campos_tombstone() as $campo => $tumba) {
+    $ids = unir_ids($state[$tumba] ?? null, []);
+    $state[$tumba] = $ids;
+    $state[$campo] = filtrar_removidos(is_array($state[$campo] ?? null) ? $state[$campo] : [], $ids);
+  }
+  $remP = array_flip($state['pessoasRemovidas'] ?? []);
+  $usuarios = [];
+  foreach (is_array($state['usuarios'] ?? null) ? $state['usuarios'] : [] as $u) {
+    if (!is_array($u)) continue;
+    $pid = (string)($u['pessoaId'] ?? '');
+    if ($pid !== '' && isset($remP[$pid])) continue;
+    $usuarios[] = $u;
+  }
+  $state['usuarios'] = $usuarios;
+  return $state;
 }
 
 function chave_licao(array $l): string {

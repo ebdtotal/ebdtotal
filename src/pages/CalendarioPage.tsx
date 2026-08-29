@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, DateInput, Confirmacao, inputClass } from '../components/ui'
 import { LicaoSelect } from '../components/LicaoSelect'
 import { licoesCatalogo } from '../lib/acompanhamento'
 import { ROTULO_EVENTO } from '../lib/pedagogia'
@@ -21,6 +21,7 @@ const COR: Record<TipoEvento, string> = {
 export function CalendarioPage() {
   const { state, saveEvento, removeEvento, ehAluno } = useStore()
   const [editing, setEditing] = useState<EventoCalendario | null>(null)
+  const [excluirEvento, setExcluirEvento] = useState<EventoCalendario | null>(null)
   const grupos = useMemo(() => {
     const map = new Map<string, EventoCalendario[]>()
     for (const ev of [...state.eventos].sort((a, b) => a.data.localeCompare(b.data))) {
@@ -75,7 +76,7 @@ export function CalendarioPage() {
                 {ehAluno ? null : (
                   <div className="flex gap-2">
                     <GhostButton onClick={() => setEditing(ev)}>Editar</GhostButton>
-                    <GhostButton onClick={() => removeEvento(ev.id)}>Excluir</GhostButton>
+                    <GhostButton onClick={() => setExcluirEvento(ev)}>Excluir</GhostButton>
                   </div>
                 )}
               </li>
@@ -91,6 +92,16 @@ export function CalendarioPage() {
         onSave={(ev) => {
           saveEvento(ev)
           setEditing(null)
+        }}
+      />
+      <Confirmacao
+        open={!!excluirEvento}
+        titulo="Excluir evento"
+        texto={`Excluir “${excluirEvento?.titulo ?? ''}”?`}
+        onCancel={() => setExcluirEvento(null)}
+        onConfirm={() => {
+          if (excluirEvento) removeEvento(excluirEvento.id)
+          setExcluirEvento(null)
         }}
       />
     </div>

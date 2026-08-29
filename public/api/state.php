@@ -12,20 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $row = $st->fetch();
   $state = $row ? json_decode((string)$row['json'], true) : [];
   if (!is_array($state)) $state = [];
-  $state['avaliacoes'] = filtrar_removidos(
-    is_array($state['avaliacoes'] ?? null) ? $state['avaliacoes'] : [],
-    unir_ids($state['avaliacoesRemovidas'] ?? null, [])
-  );
-  $state['certificados'] = filtrar_removidos(
-    is_array($state['certificados'] ?? null) ? $state['certificados'] : [],
-    unir_ids($state['certificadosRemovidos'] ?? null, [])
-  );
+  $state = aplicar_tombstones($state);
   $updatedAt = is_array($row) ? (string)($row['updated_at'] ?? '') : '';
   $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
   $ts = $updatedAt !== '' ? $updatedAt : gmdate('c');
   $state = stamp_missing_updated_at($state, $ts);
   $state = mesclar_usuarios_banco($pdo, $tenantId, $state);
   $state = reconciliar_acessos($state);
+  $state = aplicar_tombstones($state);
   if (json_encode($state, JSON_UNESCAPED_UNICODE) !== $antes) {
     $now = gmdate('c');
     sync_users($pdo, $tenantId, $state);
@@ -64,6 +58,7 @@ $state = merge_state($old, $state);
 
 $state['sessaoId'] = $sess['user_id'];
 $state = reconciliar_acessos($state);
+$state = aplicar_tombstones($state);
 sync_users($pdo, $tenantId, $state);
 $json = json_encode($state, JSON_UNESCAPED_UNICODE);
 $chk = $pdo->prepare('SELECT tenant_id FROM app_state WHERE tenant_id = ?');

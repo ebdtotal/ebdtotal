@@ -1,7 +1,7 @@
 import { Download, FileText, Plus, Pencil, Trash2, UserRoundSearch, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, DateInput, Confirmacao, inputClass } from '../components/ui'
 import { ImportacaoExcel } from '../components/ImportacaoExcel'
 import { TelaImpressao } from '../components/TelaImpressao'
 import { casarOpcao, celula, exportToExcel, lerPlanilha } from '../lib/excel'
@@ -72,6 +72,7 @@ export function CadastrosPage() {
     tipo: TipoPessoa
   } | null>(null)
   const [previewPdf, setPreviewPdf] = useState<string | null>(null)
+  const [excluirPessoa, setExcluirPessoa] = useState<Pessoa | null>(null)
 
   useEffect(() => {
     if (!acessoSalvo) return
@@ -370,7 +371,7 @@ export function CadastrosPage() {
                         <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(p)}>
                           <Pencil size={15} />
                         </button>
-                        <button type="button" className="text-muted hover:text-red-600" onClick={() => removePessoa(p.id)}>
+                        <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirPessoa(p)}>
                           <Trash2 size={15} />
                         </button>
                       </>
@@ -403,6 +404,16 @@ export function CadastrosPage() {
         />
       ) : null}
       {previewPdf ? <TelaImpressao html={previewPdf} onClose={() => setPreviewPdf(null)} /> : null}
+      <Confirmacao
+        open={!!excluirPessoa}
+        titulo="Excluir cadastro"
+        texto={`Excluir ${excluirPessoa?.nome ?? ''}? O login dessa pessoa também sai e a exclusão não volta na sincronização.`}
+        onCancel={() => setExcluirPessoa(null)}
+        onConfirm={() => {
+          if (excluirPessoa) removePessoa(excluirPessoa.id)
+          setExcluirPessoa(null)
+        }}
+      />
     </div>
   )
 }
