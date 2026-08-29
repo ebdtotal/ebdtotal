@@ -1,7 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { LicaoSelect } from '../components/LicaoSelect'
-import { Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { catalogoDeLicao, licaoDaData, licoesCatalogo } from '../lib/acompanhamento'
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
@@ -34,16 +34,26 @@ export function AvaliacaoPage() {
   const [alts, setAlts] = useState(VAZIA.alts)
   const [correta, setCorreta] = useState(VAZIA.correta)
   const [lista, setLista] = useState<{ av: Avaliacao; tipo: 'acertos' | 'erros' } | null>(null)
+  const [excluirAv, setExcluirAv] = useState<Avaliacao | null>(null)
+
+  const idsDaAula = useMemo(() => {
+    const ids = new Set<string>()
+    if (licaoId) ids.add(licaoId)
+    for (const l of state.licoes) {
+      if (catalogoDeLicao(state.licoes, l).id === licaoId) ids.add(l.id)
+    }
+    return ids
+  }, [state.licoes, licaoId])
 
   const daLicao = useMemo(
     () =>
       state.avaliacoes.filter((a) => {
-        if (a.licaoId !== licaoId) return false
+        if (!idsDaAula.has(a.licaoId)) return false
         if (a.escolaId !== escolaId) return false
         if (ehProfessor && usuario?.turma) return a.turma === usuario.turma
         return true
       }),
-    [state.avaliacoes, licaoId, escolaId, ehProfessor, usuario?.turma],
+    [state.avaliacoes, idsDaAula, escolaId, ehProfessor, usuario?.turma],
   )
 
   function limparForm() {
@@ -65,11 +75,15 @@ export function AvaliacaoPage() {
   }
 
   function excluir(av: Avaliacao) {
-    if (!window.confirm(`Excluir a pergunta “${av.pergunta}”? As respostas dos alunos desta miniavaliação também saem.`)) {
-      return
-    }
+    setExcluirAv(av)
+  }
+
+  function confirmarExclusao() {
+    const av = excluirAv
+    if (!av) return
     if (editingId === av.id) limparForm()
     removeAvaliacao(av.id)
+    setExcluirAv(null)
   }
 
   function lancar() {
@@ -194,11 +208,11 @@ export function AvaliacaoPage() {
                 </button>
                 <button
                   type="button"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-red-600 px-3 text-sm font-semibold text-white shadow-sm"
                   aria-label="Excluir pergunta"
                   onClick={() => excluir(av)}
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={16} /> Excluir
                 </button>
               </div>
             </div>
@@ -239,6 +253,13 @@ export function AvaliacaoPage() {
         lista={lista}
         pessoas={state.pessoas}
         onClose={() => setLista(null)}
+      />
+      <Confirmacao
+        open={!!excluirAv}
+        titulo="Excluir pergunta"
+        texto={`Excluir a pergunta “${excluirAv?.pergunta ?? ''}”? As respostas dos alunos desta miniavaliação também saem.`}
+        onCancel={() => setExcluirAv(null)}
+        onConfirm={confirmarExclusao}
       />
     </div>
   )

@@ -237,6 +237,8 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'desafios' => [],
     'certificados' => [],
     'licoesRemovidas' => [],
+    'avaliacoesRemovidas' => [],
+    'certificadosRemovidos' => [],
     'cursos' => [],
     'progressos' => [],
     'rankingCompetitivo' => true,
@@ -892,10 +894,9 @@ function merge_state(array $old, array $new): array {
     is_array($old['relatorios'] ?? null) ? $old['relatorios'] : [],
     is_array($new['relatorios'] ?? null) ? $new['relatorios'] : []
   );
-  $out['licoesRemovidas'] = array_values(array_unique(array_merge(
-    is_array($old['licoesRemovidas'] ?? null) ? $old['licoesRemovidas'] : [],
-    is_array($new['licoesRemovidas'] ?? null) ? $new['licoesRemovidas'] : []
-  )));
+  $out['licoesRemovidas'] = unir_ids($old['licoesRemovidas'] ?? null, $new['licoesRemovidas'] ?? null);
+  $out['avaliacoesRemovidas'] = unir_ids($old['avaliacoesRemovidas'] ?? null, $new['avaliacoesRemovidas'] ?? null);
+  $out['certificadosRemovidos'] = unir_ids($old['certificadosRemovidos'] ?? null, $new['certificadosRemovidos'] ?? null);
   $removidas = array_flip($out['licoesRemovidas']);
   $licoes = [];
   foreach (is_array($out['licoes'] ?? null) ? $out['licoes'] : [] as $l) {
@@ -908,6 +909,26 @@ function merge_state(array $old, array $new): array {
   $out['licoes'] = deduplicar_licoes($licoes);
   foreach ($out['licoes'] as $l) unset($antes[(string)($l['id'] ?? '')]);
   $out['licoesRemovidas'] = array_values(array_unique(array_merge($out['licoesRemovidas'], array_keys($antes))));
+  $out['avaliacoes'] = filtrar_removidos(is_array($out['avaliacoes'] ?? null) ? $out['avaliacoes'] : [], $out['avaliacoesRemovidas']);
+  $out['certificados'] = filtrar_removidos(is_array($out['certificados'] ?? null) ? $out['certificados'] : [], $out['certificadosRemovidos']);
+  return $out;
+}
+
+function unir_ids($a, $b): array {
+  return array_values(array_unique(array_merge(
+    is_array($a) ? $a : [],
+    is_array($b) ? $b : []
+  )));
+}
+
+function filtrar_removidos(array $lista, array $ids): array {
+  $rem = array_flip($ids);
+  $out = [];
+  foreach ($lista as $item) {
+    if (!is_array($item) || empty($item['id'])) continue;
+    if (isset($rem[(string)$item['id']])) continue;
+    $out[] = $item;
+  }
   return $out;
 }
 

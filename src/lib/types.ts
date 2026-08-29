@@ -262,6 +262,8 @@ export type AppState = {
   certificados: Certificado[]
   modeloCertificado?: ModeloCertificado
   licoesRemovidas?: string[]
+  avaliacoesRemovidas?: string[]
+  certificadosRemovidos?: string[]
   cursos: CursoProfessor[]
   progressos: ProgressoCurso[]
   rankingCompetitivo: boolean

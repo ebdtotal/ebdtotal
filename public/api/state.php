@@ -12,6 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $row = $st->fetch();
   $state = $row ? json_decode((string)$row['json'], true) : [];
   if (!is_array($state)) $state = [];
+  $state['avaliacoes'] = filtrar_removidos(
+    is_array($state['avaliacoes'] ?? null) ? $state['avaliacoes'] : [],
+    unir_ids($state['avaliacoesRemovidas'] ?? null, [])
+  );
+  $state['certificados'] = filtrar_removidos(
+    is_array($state['certificados'] ?? null) ? $state['certificados'] : [],
+    unir_ids($state['certificadosRemovidos'] ?? null, [])
+  );
   $updatedAt = is_array($row) ? (string)($row['updated_at'] ?? '') : '';
   $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
   $ts = $updatedAt !== '' ? $updatedAt : gmdate('c');

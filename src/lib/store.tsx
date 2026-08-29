@@ -63,6 +63,8 @@ function loadState(): AppState {
       certificados: parsed.certificados ?? seed.certificados,
       modeloCertificado: parsed.modeloCertificado ?? seed.modeloCertificado,
       licoesRemovidas: parsed.licoesRemovidas ?? seed.licoesRemovidas,
+      avaliacoesRemovidas: parsed.avaliacoesRemovidas ?? seed.avaliacoesRemovidas,
+      certificadosRemovidos: parsed.certificadosRemovidos ?? seed.certificadosRemovidos,
       cursos: parsed.cursos?.length ? parsed.cursos : seed.cursos,
       progressos: parsed.progressos ?? seed.progressos,
       rankingCompetitivo: parsed.rankingCompetitivo ?? false,
@@ -739,12 +741,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const certificados = prev.certificados.some((c) => c.id === certificado.id)
         ? prev.certificados.map((c) => (c.id === certificado.id ? certificado : c))
         : [...prev.certificados, certificado]
-      return { ...prev, certificados }
-    })
+      return {
+        ...prev,
+        certificados,
+        certificadosRemovidos: (prev.certificadosRemovidos ?? []).filter((id) => id !== certificado.id),
+      }
+    }, true)
   }, [commit])
 
   const removeCertificado = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, certificados: prev.certificados.filter((c) => c.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        certificados: prev.certificados.filter((c) => c.id !== id),
+        certificadosRemovidos: [...new Set([...(prev.certificadosRemovidos ?? []), id])],
+      }),
+      true,
+    )
   }, [commit])
 
   const saveModeloCertificado = useCallback((modelo: ModeloCertificado) => {
@@ -756,12 +769,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const avaliacoes = prev.avaliacoes.some((a) => a.id === avaliacao.id)
         ? prev.avaliacoes.map((a) => (a.id === avaliacao.id ? avaliacao : a))
         : [...prev.avaliacoes, avaliacao]
-      return { ...prev, avaliacoes }
-    })
+      return {
+        ...prev,
+        avaliacoes,
+        avaliacoesRemovidas: (prev.avaliacoesRemovidas ?? []).filter((id) => id !== avaliacao.id),
+      }
+    }, true)
   }, [commit])
 
   const removeAvaliacao = useCallback((id: string) => {
-    commit((prev) => ({ ...prev, avaliacoes: prev.avaliacoes.filter((a) => a.id !== id) }))
+    commit(
+      (prev) => ({
+        ...prev,
+        avaliacoes: prev.avaliacoes.filter((a) => a.id !== id),
+        avaliacoesRemovidas: [...new Set([...(prev.avaliacoesRemovidas ?? []), id])],
+      }),
+      true,
+    )
   }, [commit])
 
   const responderAvaliacao = useCallback((avaliacaoId: string, pessoaId: string, alternativa: number) => {

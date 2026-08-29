@@ -212,9 +212,17 @@ export function hidratarEstado(state: AppState): AppState {
     cursos: state.cursos ?? [],
     progressos: state.progressos ?? [],
     licoesRemovidas: state.licoesRemovidas ?? [],
+    avaliacoesRemovidas: state.avaliacoesRemovidas ?? [],
+    certificadosRemovidos: state.certificadosRemovidos ?? [],
     modeloCertificado: state.modeloCertificado?.texto ? { ...MODELO_CERTIFICADO_PADRAO, ...state.modeloCertificado } : MODELO_CERTIFICADO_PADRAO,
   })
-  return next
+  const avRem = new Set(next.avaliacoesRemovidas ?? [])
+  const certRem = new Set(next.certificadosRemovidos ?? [])
+  return {
+    ...next,
+    avaliacoes: next.avaliacoes.filter((a) => !avRem.has(a.id)),
+    certificados: next.certificados.filter((c) => !certRem.has(c.id)),
+  }
 }
 
 export function catalogoCresceu(antes: AppState, depois: AppState): boolean {

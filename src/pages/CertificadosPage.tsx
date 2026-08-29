@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TelaImpressao } from '../components/TelaImpressao'
-import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, DateInput, Confirmacao, inputClass } from '../components/ui'
 import { aplicarModelo, htmlCertificado, dadosCertificado, modeloCertificadoDe } from '../lib/certificado'
 import { useStore } from '../lib/store'
 import type { Certificado, ModeloCertificado } from '../lib/types'
@@ -22,6 +22,7 @@ export function CertificadosPage() {
   const [editando, setEditando] = useState<Certificado | null>(null)
   const [modeloAberto, setModeloAberto] = useState(false)
   const [previewPdf, setPreviewPdf] = useState<string | null>(null)
+  const [excluirId, setExcluirId] = useState<string | null>(null)
   const alunos = useMemo(
     () => pessoasVisiveis.filter((p) => p.tipo === 'Aluno' && p.status === 'Ativo'),
     [pessoasVisiveis],
@@ -106,13 +107,7 @@ export function CertificadosPage() {
                     {podeEmitirCertificado ? (
                       <>
                         <GhostButton onClick={() => setEditando(c)}>Editar</GhostButton>
-                        <GhostButton
-                          onClick={() => {
-                            if (confirm('Excluir este certificado?')) removeCertificado(c.id)
-                          }}
-                        >
-                          Excluir
-                        </GhostButton>
+                        <GhostButton onClick={() => setExcluirId(c.id)}>Excluir</GhostButton>
                       </>
                     ) : null}
                   </div>
@@ -141,6 +136,16 @@ export function CertificadosPage() {
         }}
       />
       {previewPdf ? <TelaImpressao html={previewPdf} onClose={() => setPreviewPdf(null)} /> : null}
+      <Confirmacao
+        open={!!excluirId}
+        titulo="Excluir certificado"
+        texto="Excluir este certificado emitido? O aluno deixa de vê-lo no app."
+        onCancel={() => setExcluirId(null)}
+        onConfirm={() => {
+          if (excluirId) removeCertificado(excluirId)
+          setExcluirId(null)
+        }}
+      />
     </div>
   )
 }

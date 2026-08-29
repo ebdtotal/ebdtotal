@@ -338,6 +338,8 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
     certificados: [],
     modeloCertificado: undefined,
     licoesRemovidas: [],
+    avaliacoesRemovidas: [],
+    certificadosRemovidos: [],
     cursos: CURSOS,
     progressos: [],
     rankingCompetitivo: false,

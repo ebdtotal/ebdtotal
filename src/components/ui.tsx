@@ -177,3 +177,35 @@ export function GhostButton({
     </button>
   )
 }
+
+export function Confirmacao({
+  open,
+  titulo,
+  texto,
+  confirmar = 'Excluir',
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  titulo: string
+  texto: string
+  confirmar?: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Modal open={open} title={titulo} onClose={onCancel}>
+      <p className="text-sm leading-6 text-ink">{texto}</p>
+      <div className="mt-4 flex justify-end gap-2">
+        <GhostButton onClick={onCancel}>Cancelar</GhostButton>
+        <button
+          type="button"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md"
+          onClick={onConfirm}
+        >
+          {confirmar}
+        </button>
+      </div>
+    </Modal>
+  )
+}

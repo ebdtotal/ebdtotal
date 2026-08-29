@@ -65,6 +65,8 @@ function criar_cliente(PDO $pdo, array $in): array {
     'desafios' => [],
     'certificados' => [],
     'licoesRemovidas' => [],
+    'avaliacoesRemovidas' => [],
+    'certificadosRemovidos' => [],
     'cursos' => [],
     'progressos' => [],
     'rankingCompetitivo' => false,
