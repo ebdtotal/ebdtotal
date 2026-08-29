@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { TemaToggle } from '../components/TemaToggle'
 import { Field, PrimaryButton, inputClass } from '../components/ui'
 import { apiAssinar } from '../lib/api'
 
@@ -49,7 +50,10 @@ export function AssinePage() {
   }
 
   return (
-    <div className="min-h-dvh bg-page px-4 py-10">
+    <div className="relative min-h-dvh bg-page px-4 py-10">
+      <div className="absolute right-4 top-4">
+        <TemaToggle compact />
+      </div>
       <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow-sm sm:p-8">
         <Link to="/" className="text-sm text-navy">
           ← Voltar

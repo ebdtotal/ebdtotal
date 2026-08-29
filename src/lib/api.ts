@@ -105,11 +105,11 @@ export async function apiLogout() {
 }
 
 export async function apiGetState() {
-  return req<{ state: unknown; usuarioId: string }>('state.php')
+  return req<{ state: unknown; usuarioId: string; updatedAt?: string }>('state.php')
 }
 
 export async function apiSaveState(state: unknown) {
-  return req<{ ok: boolean }>('state.php', { method: 'POST', body: JSON.stringify({ state }) })
+  return req<{ ok: boolean; updatedAt?: string }>('state.php', { method: 'POST', body: JSON.stringify({ state }) })
 }
 
 export async function apiStats(): Promise<StatsPublicos> {

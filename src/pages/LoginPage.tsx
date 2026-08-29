@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { TemaToggle } from '../components/TemaToggle'
 import { GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import { apiEsqueciSenha } from '../lib/api'
 import { ehAppNativo } from '../lib/native'
@@ -19,7 +20,10 @@ export function LoginPage() {
   if (usuario) return <Navigate to={destinoInicial(usuario.papel)} replace />
 
   return (
-    <div className="flex h-full min-h-[var(--app-min-h,100dvh)] items-center justify-center overflow-y-auto bg-navy px-4 py-8 pt-[max(2rem,env(safe-area-inset-top),var(--safe-top,0px))] pb-[max(2rem,env(safe-area-inset-bottom),var(--safe-bottom,0px))]">
+    <div className="login-shell relative flex h-full min-h-[var(--app-min-h,100dvh)] items-center justify-center overflow-y-auto bg-navy px-4 py-8 pt-[max(2rem,env(safe-area-inset-top),var(--safe-top,0px))] pb-[max(2rem,env(safe-area-inset-bottom),var(--safe-bottom,0px))]">
+      <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top),var(--safe-top,0px))]">
+        <TemaToggle />
+      </div>
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo variant="full" className="h-28 w-auto" />

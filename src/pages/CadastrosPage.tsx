@@ -1,8 +1,10 @@
-import { Download, Plus, Pencil, Trash2, UserRoundSearch, RefreshCw } from 'lucide-react'
+import { Download, FileText, Plus, Pencil, Trash2, UserRoundSearch, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
+import { TelaImpressao } from '../components/TelaImpressao'
 import { exportToExcel } from '../lib/excel'
+import { htmlListaPdf, tentarImprimirHtml } from '../lib/imprimir'
 import { sugestaoUsername, useStore } from '../lib/store'
 import {
   FAIXAS_ETARIAS,
@@ -62,6 +64,7 @@ export function CadastrosPage() {
   const [buscaTabela, setBuscaTabela] = useState('')
   const [editing, setEditing] = useState<Pessoa | null>(null)
   const [acessoSalvo, setAcessoSalvo] = useState<{ nome: string; username: string; senha: string } | null>(null)
+  const [previewPdf, setPreviewPdf] = useState<string | null>(null)
 
   const pessoas = useMemo(() => {
     const ids = new Set(escolasVisiveis.map((e) => e.id))
@@ -87,8 +90,8 @@ export function CadastrosPage() {
     setAplicados(z)
   }
 
-  function exportar() {
-    exportToExcel('cadastros-ebd', pessoas.map((p) => {
+  function linhasExportacao() {
+    return pessoas.map((p) => {
       const escola = state.escolas.find((e) => e.id === p.escolaId)
       return {
         Nome: p.nome,
@@ -101,7 +104,21 @@ export function CadastrosPage() {
         Congregação: escola?.nome ?? '',
         Regional: escola?.regional ?? '',
       }
-    }))
+    })
+  }
+
+  function exportar() {
+    exportToExcel(ehProfessor ? 'turma-ebd' : 'cadastros-ebd', linhasExportacao())
+  }
+
+  function exportarPdf() {
+    const rows = linhasExportacao()
+    const colunas = ehProfessor
+      ? ['Nome', 'Data de nascimento', 'Turma', 'Faixa etária', 'Sexo', 'Status']
+      : ['Nome', 'Data de nascimento', 'Turma', 'Faixa etária', 'Tipo', 'Sexo', 'Status', 'Congregação']
+    const linhas = rows.map((r) => colunas.map((c) => String(r[c as keyof typeof r] ?? '')))
+    const html = htmlListaPdf(ehProfessor ? `Turma ${usuario?.turma ?? ''}`.trim() : 'Cadastros da EBD', colunas, linhas)
+    if (!tentarImprimirHtml(html)) setPreviewPdf(html)
   }
 
   return (
@@ -134,6 +151,7 @@ export function CadastrosPage() {
         </div>
       ) : null}
 
+      {!ehProfessor ? (
       <section className="mb-5 rounded-xl bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Regional">
@@ -189,15 +207,19 @@ export function CadastrosPage() {
           <GhostButton onClick={limpar}>Limpar</GhostButton>
         </div>
       </section>
+      ) : null}
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
           <PrimaryButton onClick={exportar}>
             <Download size={16} /> Excel
           </PrimaryButton>
+          <PrimaryButton onClick={exportarPdf}>
+            <FileText size={16} /> PDF
+          </PrimaryButton>
           <label className="flex items-center gap-2 text-sm">
-            Pesquisar:
-            <input className={inputClass + ' w-44'} value={buscaTabela} onChange={(e) => setBuscaTabela(e.target.value)} />
+            Pesquisar por nome:
+            <input className={inputClass + ' w-44'} value={buscaTabela} onChange={(e) => setBuscaTabela(e.target.value)} placeholder="Nome" />
           </label>
         </div>
         <div className="table-wrap">
@@ -258,6 +280,7 @@ export function CadastrosPage() {
           }}
         />
       ) : null}
+      {previewPdf ? <TelaImpressao html={previewPdf} onClose={() => setPreviewPdf(null)} /> : null}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { AppState, Certificado, ModeloCertificado, Pessoa } from './types'
 import { formatDateBR } from './utils'
+import { tentarImprimirHtml } from './imprimir'
 
 export const MODELO_CERTIFICADO_PADRAO: ModeloCertificado = {
   titulo: 'CERTIFICADO',
@@ -40,13 +41,13 @@ export function aplicarModelo(modelo: ModeloCertificado, dados: Record<string, s
   return modelo.texto.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, chave: string) => dados[chave] ?? '')
 }
 
-export function baixarCertificadoPdf(state: AppState, cert: Certificado, pessoa: Pessoa | undefined) {
+export function htmlCertificado(state: AppState, cert: Certificado, pessoa: Pessoa | undefined) {
   const modelo = modeloCertificadoDe(state)
   const dados = dadosCertificado(state, cert, pessoa)
-    const corpo = aplicarModelo(modelo, dados)
-    const nome = escapeHtml(dados.nome)
-    const corpoHtml = escapeHtml(corpo).replaceAll(nome, `<span class="nome">${nome}</span>`)
-  const html = `<!DOCTYPE html>
+  const corpo = aplicarModelo(modelo, dados)
+  const nome = escapeHtml(dados.nome)
+  const corpoHtml = escapeHtml(corpo).replaceAll(nome, `<span class="nome">${nome}</span>`)
+  return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
@@ -97,14 +98,13 @@ export function baixarCertificadoPdf(state: AppState, cert: Certificado, pessoa:
       <p class="rodape">EDB Total · ${escapeHtml(dados.data)}</p>
     </div>
   </div>
-  <script>window.onload = function () { window.focus(); window.print(); }<\/script>
 </body>
 </html>`
-  const w = window.open('', '_blank')
-  if (!w) return
-  w.document.open()
-  w.document.write(html)
-  w.document.close()
+}
+
+export function baixarCertificadoPdf(state: AppState, cert: Certificado, pessoa: Pessoa | undefined): string | null {
+  const html = htmlCertificado(state, cert, pessoa)
+  return tentarImprimirHtml(html) ? null : html
 }
 
 function escapeHtml(s: string): string {

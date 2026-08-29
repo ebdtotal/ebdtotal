@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { TelaImpressao } from '../components/TelaImpressao'
 import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
-import { aplicarModelo, baixarCertificadoPdf, dadosCertificado, modeloCertificadoDe } from '../lib/certificado'
+import { aplicarModelo, htmlCertificado, dadosCertificado, modeloCertificadoDe } from '../lib/certificado'
 import { useStore } from '../lib/store'
 import type { Certificado, ModeloCertificado } from '../lib/types'
 import { formatDateBR, toISODate, uid } from '../lib/utils'
@@ -20,10 +21,15 @@ export function CertificadosPage() {
   const meus = state.certificados.filter((c) => c.pessoaId === pessoaAluno?.id)
   const [editando, setEditando] = useState<Certificado | null>(null)
   const [modeloAberto, setModeloAberto] = useState(false)
+  const [previewPdf, setPreviewPdf] = useState<string | null>(null)
   const alunos = useMemo(
     () => pessoasVisiveis.filter((p) => p.tipo === 'Aluno' && p.status === 'Ativo'),
     [pessoasVisiveis],
   )
+
+  function baixar(c: Certificado, pessoa: typeof pessoaAluno) {
+    setPreviewPdf(htmlCertificado(state, c, pessoa))
+  }
 
   if (ehAluno) {
     return (
@@ -40,11 +46,12 @@ export function CertificadosPage() {
                   <div className="font-semibold">{c.titulo}</div>
                   <div className="text-sm text-muted">{formatDateBR(c.data)}</div>
                 </div>
-                <PrimaryButton onClick={() => baixarCertificadoPdf(state, c, pessoaAluno)}>Baixar PDF</PrimaryButton>
+                <PrimaryButton onClick={() => baixar(c, pessoaAluno)}>Baixar PDF</PrimaryButton>
               </li>
             ))}
           </ul>
         )}
+        {previewPdf ? <TelaImpressao html={previewPdf} onClose={() => setPreviewPdf(null)} /> : null}
       </div>
     )
   }
@@ -95,7 +102,7 @@ export function CertificadosPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <GhostButton onClick={() => baixarCertificadoPdf(state, c, pessoa)}>PDF</GhostButton>
+                    <GhostButton onClick={() => baixar(c, pessoa)}>PDF</GhostButton>
                     {podeEmitirCertificado ? (
                       <>
                         <GhostButton onClick={() => setEditando(c)}>Editar</GhostButton>
@@ -133,6 +140,7 @@ export function CertificadosPage() {
           setModeloAberto(false)
         }}
       />
+      {previewPdf ? <TelaImpressao html={previewPdf} onClose={() => setPreviewPdf(null)} /> : null}
     </div>
   )
 }

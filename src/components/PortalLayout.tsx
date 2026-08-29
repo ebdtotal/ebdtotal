@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Logo } from './Logo'
+import { TemaToggle } from './TemaToggle'
 
 const NAV = [
   { to: '/portal', label: 'Início', icon: Home, end: true },
@@ -77,15 +78,23 @@ export function PortalLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-0 flex-1 flex-col lg:pl-60">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-3 py-2.5 backdrop-blur-md">
           <div className="flex min-w-0 items-center gap-2">
-            <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full lg:hidden" onClick={() => setOpen(true)}>
-              <Menu size={20} />
+            <button
+              type="button"
+              className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold text-navy shadow-md lg:hidden"
+              aria-label="Abrir menu"
+              onClick={() => setOpen(true)}
+            >
+              <Menu size={26} strokeWidth={2.75} />
             </button>
             <Logo variant="mark" className="h-8 w-8" />
             <div className="text-sm font-semibold text-navy">EDB Total</div>
           </div>
-          <NavLink to="/conta" className="max-w-[110px] truncate text-xs font-medium text-navy">
-            {usuario?.nome}
-          </NavLink>
+          <div className="flex min-w-0 items-center gap-2">
+            <TemaToggle compact />
+            <NavLink to="/conta" className="max-w-[110px] truncate text-xs font-medium text-navy">
+              {usuario?.nome}
+            </NavLink>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8">{children}</main>
       </div>
@@ -97,10 +106,10 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex min-h-12 flex-col items-center justify-center gap-0.5 pt-1.5 text-[9px] ${isActive ? 'font-semibold text-navy' : 'text-muted'}`
+              `flex min-h-12 flex-col items-center justify-center gap-0.5 pt-1.5 text-[9px] ${isActive ? 'font-bold text-navy' : 'font-semibold text-navy/70'}`
             }
           >
-            <item.icon size={18} />
+            <item.icon size={22} />
             {item.label}
           </NavLink>
         ))}

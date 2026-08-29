@@ -151,8 +151,10 @@ export function PortalAlunoPage() {
             <ul className="space-y-2 text-sm">
               {quizzes.map((q) => {
                 const resp = q.respostas.find((r) => r.pessoaId === pessoa?.id)
+                const aula = state.licoes.find((l) => l.id === q.licaoId)
                 return (
                   <li key={q.id}>
+                    {aula ? <div className="text-xs font-semibold text-navy">{aula.tema}</div> : null}
                     {q.pergunta}
                     <div className="text-xs text-muted">{resp ? 'Respondida' : 'Pendente — abra Miniavaliação'}</div>
                   </li>

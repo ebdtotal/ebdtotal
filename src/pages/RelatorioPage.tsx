@@ -142,10 +142,10 @@ export function RelatorioPage() {
     <div>
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold text-ink">Relatório</h1>
-        <div className="inline-flex items-center rounded-md bg-navy text-white shadow-sm">
+        <div className="inline-flex items-center rounded-xl bg-gold text-navy shadow-md">
           <button
             type="button"
-            className="px-2 py-2 hover:bg-white/10"
+            className="px-2 py-2 hover:bg-navy/10"
             aria-label="Dia anterior"
             onClick={() => setData(shiftDate(data, -1))}
           >
@@ -170,7 +170,7 @@ export function RelatorioPage() {
           </div>
           <button
             type="button"
-            className="px-2 py-2 hover:bg-white/10"
+            className="px-2 py-2 hover:bg-navy/10"
             aria-label="Próximo dia"
             onClick={() => setData(shiftDate(data, 1))}
           >

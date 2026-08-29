@@ -53,10 +53,10 @@ export function InicioPage() {
           <Link
             key={`${a.to}${a.search ?? ''}`}
             to={{ pathname: a.to, search: a.search }}
-            className="rounded-2xl bg-navy-2 p-4 shadow-sm transition hover:ring-2 hover:ring-white/20"
+            className="rounded-2xl border-2 border-gold bg-white p-4 shadow-md"
           >
-            <div className="font-semibold text-white">{a.label}</div>
-            <div className="mt-1 text-sm text-white/65">{a.texto}</div>
+            <div className="font-semibold text-navy">{a.label}</div>
+            <div className="mt-1 text-sm text-navy/70">{a.texto}</div>
           </Link>
         ))}
       </div>
@@ -69,10 +69,10 @@ function LicaoDaSemana() {
   const licao = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()))
   if (!licao) return null
   return (
-    <Link to={`/licao?id=${licao.id}`} className="mb-5 block rounded-xl bg-navy p-5 text-white shadow-sm">
-      <div className="text-xs uppercase tracking-wide text-gold">Lição desta semana</div>
-      <div className="mt-1 text-lg font-semibold">{licao.tema}</div>
-      <div className="mt-1 text-sm text-white/75">{licao.textoBiblico}</div>
+    <Link to={`/licao?id=${licao.id}`} className="mb-5 block rounded-xl border-2 border-gold bg-white p-5 shadow-md">
+      <div className="text-xs font-semibold uppercase tracking-wide text-navy">Lição desta semana</div>
+      <div className="mt-1 text-lg font-semibold text-navy">{licao.tema}</div>
+      <div className="mt-1 text-sm text-navy/70">{licao.textoBiblico}</div>
     </Link>
   )
 }

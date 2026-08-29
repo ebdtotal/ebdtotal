@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
+import { TemaToggle } from '../components/TemaToggle'
 import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
 
 function Shell({ title, children }: { title: string; children: ReactNode }) {
@@ -18,9 +19,12 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
             <Logo variant="mark" className="h-9 w-9" />
             <span className="font-semibold text-navy">EDB Total</span>
           </Link>
-          <Link to="/login" className="text-sm font-medium text-navy">
-            Entrar
-          </Link>
+          <div className="flex items-center gap-2">
+            <TemaToggle compact />
+            <Link to="/login" className="text-sm font-medium text-navy">
+              Entrar
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-10">

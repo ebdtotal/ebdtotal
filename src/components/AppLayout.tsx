@@ -30,6 +30,7 @@ import { useStore } from '../lib/store'
 import { aniversariantes, ausentesRecentes } from '../lib/stats'
 import { whatsappUrl } from '../lib/utils'
 import { Logo } from './Logo'
+import { TemaToggle } from './TemaToggle'
 
 const ICONS: Record<string, LucideIcon> = {
   '/inicio': Home,
@@ -172,18 +173,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-0 flex-1 flex-col lg:pl-60">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-3 py-2.5 backdrop-blur-md lg:px-8">
           <div className="flex min-w-0 items-center gap-2">
-            <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full lg:hidden" onClick={() => setOpen(true)}>
-              <Menu size={20} />
+            <button
+              type="button"
+              className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold text-navy shadow-md lg:hidden"
+              aria-label="Abrir menu"
+              onClick={() => setOpen(true)}
+            >
+              <Menu size={26} strokeWidth={2.75} />
             </button>
             <Logo variant="mark" className="h-8 w-8" />
             <div className="truncate text-sm font-semibold text-navy">
               {location.pathname.startsWith('/relatorio/') ? 'Relatório da filial' : 'EDB Total'}
             </div>
           </div>
-          <NavLink to="/conta" className="flex min-w-0 items-center gap-1.5 text-xs text-ink hover:text-navy">
-            <UserRound size={16} className="shrink-0 text-muted" />
-            <span className="max-w-[96px] truncate sm:max-w-[140px]">{usuario?.nome}</span>
-          </NavLink>
+          <div className="flex min-w-0 items-center gap-2">
+            <TemaToggle compact />
+            <NavLink to="/conta" className="flex min-w-0 items-center gap-1.5 text-xs text-ink hover:text-navy">
+              <UserRound size={16} className="shrink-0 text-muted" />
+              <span className="max-w-[96px] truncate sm:max-w-[140px]">{usuario?.nome}</span>
+            </NavLink>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8 lg:pb-10">{children}</main>
       </div>
@@ -212,10 +221,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={item.to}
               to={item.to}
               className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 px-0.5 pt-1.5 text-[9px] leading-tight ${
-                active ? 'font-semibold text-navy' : 'text-muted'
+                active ? 'font-bold text-navy' : 'font-semibold text-navy/70'
               }`}
             >
-              <Icon size={18} />
+              <Icon size={22} />
               {item.label}
               {item.to === '/alertas' && nAlertas > 0 ? (
                 <span className="absolute right-3 top-1 h-2 w-2 rounded-full bg-gold" />

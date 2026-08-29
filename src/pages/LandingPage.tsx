@@ -15,6 +15,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
+import { TemaToggle } from '../components/TemaToggle'
 import { apiStats, type StatsPublicos, WHATSAPP_SUPORTE_LINK } from '../lib/landing'
 import { WHATSAPP_SUPORTE, whatsappUrl } from '../lib/utils'
 
@@ -94,6 +95,7 @@ export function LandingPage() {
             <a href="#planos">Planos</a>
           </nav>
           <div className="flex items-center gap-2">
+            <TemaToggle compact />
             <Link to="/login" className="rounded-xl px-3 py-2 text-sm font-semibold text-navy">
               Entrar
             </Link>

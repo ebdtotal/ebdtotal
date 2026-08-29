@@ -506,3 +506,65 @@ function sync_users(PDO $pdo, string $tenantId, array $state): void {
     $pdo->prepare($sql)->execute(array_merge([$tenantId], $keepIds));
   }
 }
+
+function merge_by_id(array $old, array $new): array {
+  $map = [];
+  foreach ($old as $item) {
+    if (!is_array($item) || empty($item['id'])) continue;
+    $map[(string)$item['id']] = $item;
+  }
+  foreach ($new as $item) {
+    if (!is_array($item) || empty($item['id'])) continue;
+    $id = (string)$item['id'];
+    if (!isset($map[$id])) {
+      $map[$id] = $item;
+      continue;
+    }
+    $ot = (string)($map[$id]['updatedAt'] ?? '');
+    $nt = (string)($item['updatedAt'] ?? '');
+    if ($nt !== '' && strcmp($nt, $ot) >= 0) $map[$id] = $item;
+    elseif ($nt === '' && $ot === '') $map[$id] = $item;
+  }
+  return array_values($map);
+}
+
+function merge_relatorios(array $old, array $new): array {
+  $map = [];
+  $put = static function ($item) use (&$map): void {
+    if (!is_array($item)) return;
+    $escola = (string)($item['escolaId'] ?? '');
+    $data = (string)($item['data'] ?? '');
+    $k = ($escola !== '' && $data !== '') ? ($escola . '|' . $data) : ('id:' . (string)($item['id'] ?? ''));
+    if ($k === 'id:') return;
+    if (!isset($map[$k])) {
+      $map[$k] = $item;
+      return;
+    }
+    $ot = (string)($map[$k]['updatedAt'] ?? '');
+    $nt = (string)($item['updatedAt'] ?? '');
+    if ($nt === '') {
+      if ($ot === '') $map[$k] = $item;
+      return;
+    }
+    if ($ot === '' || strcmp($nt, $ot) >= 0) $map[$k] = $item;
+  };
+  foreach ($old as $item) $put($item);
+  foreach ($new as $item) $put($item);
+  return array_values($map);
+}
+
+function merge_state(array $old, array $new): array {
+  $out = array_merge($old, $new);
+  $listas = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes'];
+  foreach ($listas as $campo) {
+    $out[$campo] = merge_by_id(
+      is_array($old[$campo] ?? null) ? $old[$campo] : [],
+      is_array($new[$campo] ?? null) ? $new[$campo] : []
+    );
+  }
+  $out['relatorios'] = merge_relatorios(
+    is_array($old['relatorios'] ?? null) ? $old['relatorios'] : [],
+    is_array($new['relatorios'] ?? null) ? $new['relatorios'] : []
+  );
+  return $out;
+}

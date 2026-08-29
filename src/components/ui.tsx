@@ -30,7 +30,7 @@ export function Modal({ open, title, onClose, children, wide }: ModalProps) {
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-line bg-white px-5 py-4">
           <h2 className="text-lg font-semibold text-ink">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-md p-1 text-muted hover:bg-page">
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold text-navy shadow-sm">
             <X size={18} />
           </button>
         </div>
@@ -125,7 +125,7 @@ export function DateInput({
       <button
         type="button"
         disabled={disabled}
-        className="absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-muted hover:bg-page disabled:opacity-40"
+        className="absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-gold text-navy shadow-sm hover:bg-[#d4a433] disabled:opacity-40"
         aria-label="Abrir calendário"
         onClick={() => {
           try {
@@ -142,6 +142,12 @@ export function DateInput({
   )
 }
 
+export const roundBtnClass =
+  'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold text-navy shadow-md hover:bg-[#d4a433] disabled:opacity-40'
+
+export const stepBtnClass =
+  'flex h-9 w-9 items-center justify-center rounded-full bg-navy text-white shadow-sm hover:bg-navy-2 disabled:opacity-40'
+
 export function PrimaryButton({
   children,
   ...props
@@ -150,7 +156,7 @@ export function PrimaryButton({
     <button
       type="button"
       {...props}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy-2 disabled:opacity-50 ${props.className ?? ''}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy shadow-md hover:bg-[#d4a433] disabled:opacity-50 ${props.className ?? ''}`}
     >
       {children}
     </button>
@@ -165,7 +171,7 @@ export function GhostButton({
     <button
       type="button"
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-navy hover:bg-page ${props.className ?? ''}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border-[3px] border-gold bg-white px-4 py-2.5 text-sm font-semibold text-navy shadow-sm hover:bg-gold/20 ${props.className ?? ''}`}
     >
       {children}
     </button>

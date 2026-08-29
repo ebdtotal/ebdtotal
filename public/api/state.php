@@ -7,11 +7,12 @@ $pdo = db();
 $tenantId = $sess['tenant_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-  $st = $pdo->prepare('SELECT json FROM app_state WHERE tenant_id = ?');
+  $st = $pdo->prepare('SELECT json, updated_at FROM app_state WHERE tenant_id = ?');
   $st->execute([$tenantId]);
   $row = $st->fetch();
   $state = $row ? json_decode((string)$row['json'], true) : [];
   if (!is_array($state)) $state = [];
+  $updatedAt = is_array($row) ? (string)($row['updated_at'] ?? '') : '';
   $antes = json_encode($state, JSON_UNESCAPED_UNICODE);
   $state = reconciliar_acessos($state);
   $state = mesclar_usuarios_banco($pdo, $tenantId, $state);
@@ -27,9 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
       $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
         ->execute([$tenantId, $json, $now]);
     }
+    $updatedAt = $now;
     sync_users($pdo, $tenantId, $state);
   }
-  json_ok(['state' => $state, 'usuarioId' => $sess['user_id']]);
+  json_ok(['state' => $state, 'usuarioId' => $sess['user_id'], 'updatedAt' => $updatedAt]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
@@ -39,6 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT
 $in = body();
 $state = $in['state'] ?? null;
 if (!is_array($state)) json_err('Estado inválido.');
+
+$stOld = $pdo->prepare('SELECT json FROM app_state WHERE tenant_id = ?');
+$stOld->execute([$tenantId]);
+$oldRow = $stOld->fetch();
+$old = $oldRow ? json_decode((string)$oldRow['json'], true) : [];
+if (!is_array($old)) $old = [];
+$state = merge_state($old, $state);
 
 $state['sessaoId'] = $sess['user_id'];
 $state = reconciliar_acessos($state);

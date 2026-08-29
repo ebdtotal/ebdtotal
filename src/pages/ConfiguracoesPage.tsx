@@ -58,7 +58,7 @@ export function ConfiguracoesPage() {
           <h2 className="text-lg font-semibold">Setores e acessos</h2>
           <button
             type="button"
-            className="rounded-md p-1 text-navy hover:bg-page"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold text-navy shadow-md"
             onClick={() => {
               setNomeSetor('')
               setNovoSetor(true)
@@ -75,7 +75,7 @@ export function ConfiguracoesPage() {
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-semibold text-ink">{setor.nome}</h3>
                 <div className="relative">
-                  <button type="button" className="p-1 text-muted" onClick={() => setMenuSetor(menuSetor === setor.id ? null : setor.id)}>
+                  <button type="button" className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold text-navy shadow-sm" onClick={() => setMenuSetor(menuSetor === setor.id ? null : setor.id)}>
                     <MoreVertical size={18} />
                   </button>
                   {menuSetor === setor.id ? (
@@ -126,7 +126,7 @@ export function ConfiguracoesPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-muted">@{u.username}</span>
                         <div className="relative">
-                          <button type="button" className="p-1 text-muted" onClick={() => setMenuUser(menuUser === key ? null : key)}>
+                          <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold text-navy shadow-sm" onClick={() => setMenuUser(menuUser === key ? null : key)}>
                             <MoreVertical size={16} />
                           </button>
                           {menuUser === key ? (

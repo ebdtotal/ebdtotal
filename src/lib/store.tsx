@@ -75,6 +75,13 @@ function loadState(): AppState {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let savePending = 0
+let lastRemoteAt = ''
+let canalSync: BroadcastChannel | null = null
+try {
+  canalSync = new BroadcastChannel('ebd-sync')
+} catch {
+  canalSync = null
+}
 
 function cacheLocal(state: AppState) {
   try {
@@ -92,16 +99,25 @@ function persist(state: AppState, imediato = false) {
     saveTimer = null
     savePending += 1
     void apiSaveState(state)
+      .then((res) => {
+        if (res.updatedAt) lastRemoteAt = res.updatedAt
+        try {
+          canalSync?.postMessage('saved')
+        } catch {
+          /* */
+        }
+      })
       .catch(() => {})
       .finally(() => {
         savePending = Math.max(0, savePending - 1)
+        if (savePending === 0) window.dispatchEvent(new Event(EVENTO_SYNC))
       })
   }
   if (imediato) {
     enviar()
     return
   }
-  saveTimer = setTimeout(enviar, 600)
+  saveTimer = setTimeout(enviar, 200)
 }
 
 export type AcessoApp = { username: string; senha: string; email?: string }
@@ -255,6 +271,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>) {
+      if (remote.updatedAt && remote.updatedAt === lastRemoteAt) return
+      if (remote.updatedAt) lastRemoteAt = remote.updatedAt
       const raw = {
         ...createEmptyIgrejaState(),
         ...((remote.state as AppState | null) ?? {}),
@@ -274,14 +292,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     function aoVisivel() {
       if (document.visibilityState === 'visible') puxar()
     }
+    function aoCanal(ev: MessageEvent) {
+      if (ev.data === 'saved') puxar()
+    }
     puxar()
-    const t = window.setInterval(puxar, 10000)
+    const t = window.setInterval(puxar, 2000)
     window.addEventListener(EVENTO_SYNC, puxar)
     document.addEventListener('visibilitychange', aoVisivel)
+    canalSync?.addEventListener('message', aoCanal)
     return () => {
       window.clearInterval(t)
       window.removeEventListener(EVENTO_SYNC, puxar)
       document.removeEventListener('visibilitychange', aoVisivel)
+      canalSync?.removeEventListener('message', aoCanal)
     }
   }, [])
 
@@ -465,28 +488,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const saveRelatorio = useCallback((relatorio: RelatorioDiario) => {
+    const agora = new Date().toISOString()
     commit((prev) => {
-      const exists = prev.relatorios.some((r) => r.id === relatorio.id)
+      const payload = { ...relatorio, updatedAt: agora }
+      const exists = prev.relatorios.some((r) => r.id === payload.id)
       const relatorios = exists
-        ? prev.relatorios.map((r) => (r.id === relatorio.id ? relatorio : r))
-        : [...prev.relatorios, relatorio]
-      const lancId = `oferta_${relatorio.id}`
+        ? prev.relatorios.map((r) => (r.id === payload.id ? payload : r))
+        : [...prev.relatorios, payload]
+      const lancId = `oferta_${payload.id}`
       let lancamentos = prev.lancamentos
-      if (relatorio.oferta > 0) {
+      if (payload.oferta > 0) {
         const lanc: LancamentoFinanceiro = {
           id: lancId,
-          escolaId: relatorio.escolaId,
-          data: relatorio.data,
+          escolaId: payload.escolaId,
+          data: payload.data,
           tipo: 'oferta',
-          descricao: `Oferta EBD ${formatDateBR(relatorio.data)}`,
-          valor: relatorio.oferta,
+          descricao: `Oferta EBD ${formatDateBR(payload.data)}`,
+          valor: payload.oferta,
+          updatedAt: agora,
         }
         lancamentos = lancamentos.some((l) => l.id === lancId)
           ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
           : [...lancamentos, lanc]
+      } else {
+        lancamentos = lancamentos.filter((l) => l.id !== lancId)
       }
       return { ...prev, relatorios, lancamentos }
-    })
+    }, true)
   }, [commit])
 
   const saveLancamento = useCallback((lancamento: LancamentoFinanceiro) => {

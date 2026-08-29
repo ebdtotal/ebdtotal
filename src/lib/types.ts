@@ -112,6 +112,7 @@ export type RelatorioDiario = {
   ofertaProfessores?: number
   finalizado: boolean
   alunos: ChamadaAluno[]
+  updatedAt?: string
 }
 
 export type LancamentoFinanceiro = {
@@ -122,6 +123,7 @@ export type LancamentoFinanceiro = {
   descricao: string
   valor: number
   turma?: string
+  updatedAt?: string
 }
 
 export const TIPOS_EVENTO = [
@@ -278,8 +280,9 @@ export function pontosDe(a: ChamadaAluno): number {
   )
 }
 
-export function pontosAvaliacaoDe(avaliacoes: Avaliacao[], pessoaId: string): number {
+export function pontosAvaliacaoDe(avaliacoes: Avaliacao[], pessoaId: string, licaoId?: string): number {
   return avaliacoes.reduce((n, av) => {
+    if (licaoId && av.licaoId !== licaoId) return n
     const resp = av.respostas.find((r) => r.pessoaId === pessoaId)
     return n + (resp && resp.alternativa === av.correta ? 1 : 0)
   }, 0)

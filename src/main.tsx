@@ -5,9 +5,11 @@ import { FalhaTela } from './components/FalhaTela.tsx'
 import { deveEnquadrarIphone, IphoneShell, IphoneViewport } from './components/IphoneShell.tsx'
 import App from './App.tsx'
 import { ehAppNativo, iniciarAppNativo } from './lib/native.ts'
+import { iniciarTema } from './lib/tema.ts'
 import { StoreProvider } from './lib/store.tsx'
 import './index.css'
 
+iniciarTema()
 void iniciarAppNativo()
 
 const enquadrar = deveEnquadrarIphone()

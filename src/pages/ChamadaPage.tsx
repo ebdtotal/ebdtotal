@@ -14,7 +14,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AulaDateSelect } from '../components/AulaDateSelect'
-import { GhostButton, PrimaryButton, inputClass } from '../components/ui'
+import { GhostButton, PrimaryButton, inputClass, roundBtnClass, stepBtnClass } from '../components/ui'
 import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
@@ -22,6 +22,8 @@ import { chamadaVazia, pontosDe, type ChamadaAluno, type RelatorioDiario } from 
 import { formatDateBR, lastSunday, moneyBR, parseMoneyBR, toISODate, uid } from '../lib/utils'
 
 const CHAMADA_PROFESSORES = '__professores__'
+const acoesChamadaClass =
+  'fixed inset-x-0 z-20 flex flex-col gap-2 border-t-2 border-gold bg-navy px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none'
 
 export function ChamadaPage() {
   const { state, escolasVisiveis, saveRelatorio, usuario, podeVerTudo, ehProfessor } = useStore()
@@ -161,6 +163,7 @@ export function ChamadaPage() {
       ofertaProfessores: modoProfessores ? extra.oferta : (existente?.ofertaProfessores ?? ofertaProf),
       finalizado: parcial.finalizado,
       alunos: todos,
+      updatedAt: new Date().toISOString(),
     }
   }
 
@@ -183,7 +186,7 @@ export function ChamadaPage() {
   }
 
   function autoSalvar(lista: ChamadaAluno[], extra = extrasAgora()) {
-    if (finalizado) return
+    if (finalizado && !editando) return
     salvar(lista, extra)
   }
 
@@ -323,20 +326,20 @@ export function ChamadaPage() {
             <button
               type="button"
               onClick={abrirProfessores}
-              className="flex w-full items-center justify-between rounded-2xl bg-navy-2 px-4 py-3.5 text-left text-white shadow-sm"
+              className="flex w-full items-center justify-between rounded-2xl border-2 border-gold bg-white px-4 py-3.5 text-left text-navy shadow-md"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold text-navy">
                   <GraduationCap size={20} />
                 </span>
                 <span>
                   <span className="block font-semibold">Chamada dos professores</span>
-                  <span className="text-xs text-white/65">
+                  <span className="text-xs text-navy/65">
                     {presentesProf}/{professores.length} presentes · lista única, sem separar por classe
                   </span>
                 </span>
               </span>
-              <span className="shrink-0 text-sm font-medium text-white/90">Abrir</span>
+              <span className="shrink-0 text-sm font-semibold text-navy">Abrir</span>
             </button>
           </section>
         ) : null}
@@ -353,19 +356,19 @@ export function ChamadaPage() {
                   <button
                     type="button"
                     onClick={() => abrirTurma(t)}
-                    className="flex w-full items-center justify-between rounded-2xl bg-navy-2 px-4 py-3.5 text-left text-white shadow-sm"
+                    className="flex w-full items-center justify-between rounded-2xl border-2 border-gold bg-white px-4 py-3.5 text-left text-navy shadow-md"
                   >
                     <span>
                       <span className="block font-semibold">{t}</span>
-                      <span className="text-xs text-white/65">{presentes}/{daTurma.length} presentes</span>
+                      <span className="text-xs text-navy/65">{presentes}/{daTurma.length} presentes</span>
                     </span>
-                    <span className="text-sm font-medium text-white/90">Abrir</span>
+                    <span className="text-sm font-semibold text-navy">Abrir</span>
                   </button>
                 </li>
               )
             })}
             {turmas.length === 0 ? (
-              <li className="rounded-2xl bg-navy-2 px-4 py-8 text-center text-sm text-white/65">Nenhuma turma nesta escola.</li>
+              <li className="rounded-2xl border-2 border-gold bg-white px-4 py-8 text-center text-sm text-navy/70">Nenhuma turma nesta escola.</li>
             ) : null}
           </ul>
         </section>
@@ -375,11 +378,11 @@ export function ChamadaPage() {
 
   if (modoProfessores) {
     return (
-      <div>
+      <div className="pb-40 lg:pb-0">
         <div className="mb-4 flex items-center gap-2">
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white"
+            className={roundBtnClass}
             aria-label="Voltar"
             onClick={voltarHub}
           >
@@ -487,11 +490,13 @@ export function ChamadaPage() {
         </section>
 
         {bloqueado ? (
-          <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
-            <Pencil size={16} /> Editar chamada
-          </PrimaryButton>
+          <div className={acoesChamadaClass}>
+            <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
+              <Pencil size={16} /> Editar chamada
+            </PrimaryButton>
+          </div>
         ) : finalizado ? (
-          <div className="flex flex-col gap-2">
+          <div className={acoesChamadaClass}>
             <PrimaryButton
               className="w-full"
               onClick={() => {
@@ -502,6 +507,7 @@ export function ChamadaPage() {
               Salvar alterações
             </PrimaryButton>
             <GhostButton
+              className="w-full"
               onClick={() => {
                 setEditando(false)
                 setCarregado('')
@@ -511,21 +517,23 @@ export function ChamadaPage() {
             </GhostButton>
           </div>
         ) : (
-          <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos)}>
-            Enviar relatório
-          </PrimaryButton>
+          <div className={acoesChamadaClass}>
+            <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos)}>
+              Enviar relatório
+            </PrimaryButton>
+          </div>
         )}
       </div>
     )
   }
 
   return (
-    <div>
+    <div className="pb-40 lg:pb-0">
       <div className="mb-4 flex items-center gap-2">
         {ehProfessor ? null : (
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white"
+            className={roundBtnClass}
             aria-label="Voltar às turmas"
             onClick={voltarHub}
           >
@@ -679,7 +687,7 @@ export function ChamadaPage() {
           <button
             type="button"
             disabled={bloqueado}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-page text-navy"
+            className={roundBtnClass}
             aria-label="Salvar anotação"
             onClick={() => autoSalvar(alunos)}
           >
@@ -688,25 +696,27 @@ export function ChamadaPage() {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2 pb-2">
+      <div className={acoesChamadaClass}>
         {bloqueado ? (
           <>
-            <span className="self-center text-sm text-emerald-600">Relatório finalizado</span>
-            <PrimaryButton onClick={() => setEditando(true)}>
+            <span className="text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Relatório finalizado</span>
+            <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
             </PrimaryButton>
           </>
         ) : finalizado ? (
           <>
-            <GhostButton
+            <PrimaryButton
+              className="w-full"
               onClick={() => {
                 salvar(alunos)
                 setEditando(false)
               }}
             >
               Salvar alterações
-            </GhostButton>
+            </PrimaryButton>
             <GhostButton
+              className="w-full"
               onClick={() => {
                 setEditando(false)
                 setCarregado('')
@@ -717,10 +727,10 @@ export function ChamadaPage() {
           </>
         ) : (
           <>
-            <GhostButton onClick={() => salvar(alunos)}>Salvar</GhostButton>
-            <PrimaryButton onClick={() => salvar(alunos, extrasAgora(), true)}>
+            <PrimaryButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), true)}>
               <Check size={16} /> Finalizar
             </PrimaryButton>
+            <GhostButton className="w-full" onClick={() => salvar(alunos)}>Salvar</GhostButton>
           </>
         )}
       </div>
@@ -749,8 +759,8 @@ function IconBtn({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-10 w-10 items-center justify-center rounded-full ${
-        on ? activeClass : 'text-slate-300'
+      className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm ${
+        on ? `${activeClass} bg-white ring-2 ring-current` : 'bg-navy text-white'
       } disabled:opacity-40`}
     >
       {children}
@@ -792,7 +802,7 @@ function MoneyField({
           disabled={disabled}
           aria-label={`Diminuir ${label}`}
           onClick={onMinus}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+          className={stepBtnClass}
         >
           <ChevronDown size={18} />
         </button>
@@ -820,7 +830,7 @@ function MoneyField({
           disabled={disabled}
           aria-label={`Aumentar ${label}`}
           onClick={onPlus}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+          className={stepBtnClass}
         >
           <ChevronUp size={18} />
         </button>
@@ -849,7 +859,7 @@ function PontosStepper({
           e.stopPropagation()
           onChange(Math.max(0, value - 1))
         }}
-        className="flex h-9 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+        className={stepBtnClass}
       >
         <ChevronDown size={18} />
       </button>
@@ -863,7 +873,7 @@ function PontosStepper({
           e.stopPropagation()
           onChange(value + 1)
         }}
-        className="flex h-9 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+        className={stepBtnClass}
       >
         <ChevronUp size={18} />
       </button>
@@ -898,7 +908,7 @@ function Stepper({
           disabled={disabled}
           aria-label={`Diminuir ${label}`}
           onClick={onMinus}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+          className={stepBtnClass}
         >
           <ChevronDown size={18} />
         </button>
@@ -908,7 +918,7 @@ function Stepper({
           disabled={disabled}
           aria-label={`Aumentar ${label}`}
           onClick={onPlus}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-page disabled:opacity-40"
+          className={stepBtnClass}
         >
           <ChevronUp size={18} />
         </button>

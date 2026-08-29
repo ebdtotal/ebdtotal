@@ -83,10 +83,31 @@ button {
   --color-muted: #6b778c;
   --color-line: #e4e8ee;
   --color-page: #eef1f5;
+  color: #1f2a3d;
 }
 
 .app-navy .bg-white {
   color: #1f2a3d;
+}
+
+html.tema-claro .app-navy {
+  --color-ink: #1f2a3d;
+  --color-muted: #6b778c;
+  --color-line: #e4e8ee;
+  --color-page: #eef1f5;
+  background: var(--color-page);
+  color: var(--color-ink);
+}
+
+html.tema-escuro.site-publico,
+html.tema-escuro.site-publico body,
+html.tema-escuro.site-publico #root {
+  background: #152238;
+  color: #f4f7fb;
+}
+
+html.tema-claro .login-shell {
+  background: #eef1f5;
 }
 
 .table-wrap {
@@ -111,4 +132,15 @@ table.data td {
 
 table.data tbody tr:hover {
   background: #f8fafc;
+}
+
+html.tema-escuro.site-publico header {
+  background: rgb(28 51 79 / 0.96);
+  border-color: #2a425c;
+}
+
+html.tema-escuro.site-publico header span,
+html.tema-escuro.site-publico header nav a,
+html.tema-escuro.site-publico header a.text-navy {
+  color: #f4f7fb;
 }
