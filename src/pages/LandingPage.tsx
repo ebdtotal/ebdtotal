@@ -83,7 +83,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-dvh bg-page text-ink">
-      <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur-md">
+      <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[max(env(safe-area-inset-top),var(--safe-top,0px))] backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
             <Logo variant="mark" className="h-9 w-9" />
@@ -123,16 +123,24 @@ export function LandingPage() {
               </a>
             </div>
           </div>
-          <div className="rounded-3xl bg-white p-6 text-ink shadow-2xl">
-            <Logo variant="full" className="mx-auto h-20 w-auto" />
-            <p className="mt-4 text-center text-sm text-muted">Tudo o que a EBD precisa, em um só lugar.</p>
-            <ul className="mt-5 space-y-2 text-sm">
-              {['Chamada das classes e dos professores', 'Cadastros que alimentam o painel da rede', 'Login automático para cada aluno e professor', 'Assinatura por igreja, com dados isolados'].map((t) => (
-                <li key={t} className="flex items-start gap-2">
-                  <Check size={16} className="mt-0.5 shrink-0 text-teal" /> {t}
-                </li>
-              ))}
-            </ul>
+          <div>
+            <div className="rounded-3xl bg-white p-6 text-ink shadow-2xl">
+              <Logo variant="full" className="mx-auto h-20 w-auto" />
+              <p className="mt-4 text-center text-sm text-muted">Tudo o que a EBD precisa, em um só lugar.</p>
+              <ul className="mt-5 space-y-2 text-sm">
+                {['Chamada das classes e dos professores', 'Cadastros que alimentam o painel da rede', 'Login automático para cada aluno e professor', 'Assinatura por igreja, com dados isolados'].map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <Check size={16} className="mt-0.5 shrink-0 text-teal" /> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Link
+              to="/login"
+              className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl bg-gold px-5 py-3.5 text-base font-semibold text-navy shadow-md md:hidden"
+            >
+              Acessar
+            </Link>
           </div>
         </div>
       </section>
