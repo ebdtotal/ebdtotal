@@ -55,6 +55,16 @@ export function lastSunday(from = new Date()): Date {
   return d
 }
 
+/** Domingo da aula em vigor: no próprio domingo, hoje; de segunda a sábado, o domingo que vem. */
+export function domingoDaAula(from = new Date()): Date {
+  const d = new Date(from)
+  d.setHours(0, 0, 0, 0)
+  const day = d.getDay()
+  if (day === 0) return d
+  d.setDate(d.getDate() + (7 - day))
+  return d
+}
+
 export function shiftDate(iso: string, days: number): string {
   const d = parseISODate(iso)
   d.setDate(d.getDate() + days)

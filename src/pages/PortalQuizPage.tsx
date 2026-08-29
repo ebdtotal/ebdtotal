@@ -4,7 +4,7 @@ import { Field, PrimaryButton } from '../components/ui'
 import { catalogoDeLicao, licaoDaData } from '../lib/acompanhamento'
 import { useStore } from '../lib/store'
 import { pontosAvaliacaoDe } from '../lib/types'
-import { lastSunday, toISODate } from '../lib/utils'
+import { domingoDaAula, toISODate } from '../lib/utils'
 
 export function PortalQuizPage() {
   const { state, usuario, responderAvaliacao } = useStore()
@@ -12,7 +12,7 @@ export function PortalQuizPage() {
   const daTurma = state.avaliacoes.filter((a) => a.turma === usuario?.turma)
   const licaoIds = [...new Set(daTurma.map((a) => a.licaoId))]
   const licoesQuiz = state.licoes.filter((l) => licaoIds.includes(l.id))
-  const atual = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()), {
+  const atual = licaoDaData(state.licoes, state.eventos, toISODate(domingoDaAula()), {
     turma: usuario?.turma,
     escolaId: usuario?.escolaId,
   })

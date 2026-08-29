@@ -17,6 +17,7 @@ import {
   apiToken,
   setApiToken,
 } from './api'
+import { acharVarianteTurma, catalogoDeLicao, chaveAula, deduplicarLicoes, ehLicaoGeral, idCatalogoPadrao } from './acompanhamento'
 import { ehAppNativo, EVENTO_SYNC } from './native'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
@@ -656,18 +657,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const saveLicao = useCallback((licao: Licao, data?: string) => {
-    const gravar: Licao = { ...licao, updatedAt: agoraIso() }
     commit((prev) => {
-      const licoes = prev.licoes.some((l) => l.id === gravar.id)
+      let gravar: Licao = { ...licao, updatedAt: agoraIso() }
+      const turma = (gravar.turma ?? '').trim()
+      if (turma) {
+        const existente = acharVarianteTurma(prev.licoes, gravar, turma, gravar.escolaId)
+        if (existente) gravar = { ...gravar, id: existente.id, turma, escolaId: existente.escolaId || gravar.escolaId }
+        else gravar = { ...gravar, turma }
+      } else {
+        const mesma = prev.licoes.find((l) => ehLicaoGeral(l) && chaveAula(l) === chaveAula(gravar))
+        if (mesma) gravar = { ...gravar, id: mesma.id, turma: undefined, escolaId: undefined }
+        else gravar = { ...gravar, id: idCatalogoPadrao(gravar), turma: undefined, escolaId: undefined }
+      }
+      const lista = prev.licoes.some((l) => l.id === gravar.id)
         ? prev.licoes.map((l) => (l.id === gravar.id ? gravar : l))
         : [...prev.licoes, gravar]
-      const licoesRemovidas = (prev.licoesRemovidas ?? []).filter((id) => id !== gravar.id)
-      let eventos = prev.eventos.map((e) =>
-        e.licaoId === gravar.id
-          ? { ...e, titulo: gravar.tema, descricao: `${gravar.trimestre}º trimestre ${gravar.ano}` }
-          : e,
-      )
-      if (data && !(gravar.turma ?? '').trim()) {
+      const { licoes, extras } = deduplicarLicoes(lista)
+      const licoesRemovidas = [
+        ...new Set([...(prev.licoesRemovidas ?? []).filter((id) => id !== gravar.id), ...extras]),
+      ]
+      let eventos = prev.eventos.map((e) => {
+        if (!e.licaoId) return e
+        if (e.licaoId === gravar.id && !turma) {
+          return { ...e, titulo: gravar.tema, descricao: `${gravar.trimestre}º trimestre ${gravar.ano}` }
+        }
+        const apontada = licoes.find((l) => l.id === e.licaoId)
+        if (apontada && !ehLicaoGeral(apontada)) {
+          const cat = catalogoDeLicao(licoes, apontada)
+          return { ...e, licaoId: cat.id }
+        }
+        return e
+      })
+      if (data && !turma) {
         const existente = eventos.find((e) => e.licaoId === gravar.id)
         if (existente) {
           eventos = eventos.map((e) => (e.id === existente.id ? { ...e, data, titulo: gravar.tema } : e))

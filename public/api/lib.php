@@ -828,5 +828,47 @@ function merge_state(array $old, array $new): array {
     is_array($old['relatorios'] ?? null) ? $old['relatorios'] : [],
     is_array($new['relatorios'] ?? null) ? $new['relatorios'] : []
   );
+  $out['licoesRemovidas'] = array_values(array_unique(array_merge(
+    is_array($old['licoesRemovidas'] ?? null) ? $old['licoesRemovidas'] : [],
+    is_array($new['licoesRemovidas'] ?? null) ? $new['licoesRemovidas'] : []
+  )));
+  $removidas = array_flip($out['licoesRemovidas']);
+  $licoes = [];
+  foreach (is_array($out['licoes'] ?? null) ? $out['licoes'] : [] as $l) {
+    if (!is_array($l) || empty($l['id'])) continue;
+    if (isset($removidas[(string)$l['id']])) continue;
+    $licoes[] = $l;
+  }
+  $antes = [];
+  foreach ($licoes as $l) $antes[(string)$l['id']] = true;
+  $out['licoes'] = deduplicar_licoes($licoes);
+  foreach ($out['licoes'] as $l) unset($antes[(string)($l['id'] ?? '')]);
+  $out['licoesRemovidas'] = array_values(array_unique(array_merge($out['licoesRemovidas'], array_keys($antes))));
   return $out;
+}
+
+function chave_licao(array $l): string {
+  $turma = trim((string)($l['turma'] ?? ''));
+  $aula = ((string)($l['ano'] ?? '')) . '|' . ((string)($l['trimestre'] ?? '')) . '|' . ((string)($l['numero'] ?? ''));
+  if ($turma === '') return 'g|' . $aula;
+  return 't|' . $aula . '|' . strtolower($turma) . '|' . trim((string)($l['escolaId'] ?? ''));
+}
+
+function deduplicar_licoes(array $licoes): array {
+  $grupos = [];
+  foreach ($licoes as $l) {
+    $grupos[chave_licao($l)][] = $l;
+  }
+  $keep = [];
+  foreach ($grupos as $lista) {
+    if (count($lista) === 1) {
+      $keep[] = $lista[0];
+      continue;
+    }
+    usort($lista, static function ($a, $b) {
+      return strcmp((string)($b['updatedAt'] ?? ''), (string)($a['updatedAt'] ?? ''));
+    });
+    $keep[] = $lista[0];
+  }
+  return array_values($keep);
 }

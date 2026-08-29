@@ -1,3 +1,4 @@
+import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
 import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
@@ -164,10 +165,20 @@ export function hidratarLicoes(state: AppState): AppState {
     }
   }
 
-  const licoes = [...byId.values()].sort((a, b) => a.ano - b.ano || a.trimestre - b.trimestre || a.numero - b.numero)
+  const { licoes: unicas, extras } = deduplicarLicoes([...byId.values()])
+  const licoes = unicas.sort((a, b) => a.ano - b.ano || a.trimestre - b.trimestre || a.numero - b.numero)
+  for (const id of extras) removidas.add(id)
   const geradoPorData = new Map(gerado.eventos.map((e) => [e.data, e]))
   const eventos = (state.eventos ?? []).map((e) => {
-    if (!/^ev\d+$/.test(e.id) || e.tipo !== 'licao') return e
+    if (!/^ev\d+$/.test(e.id) || e.tipo !== 'licao') {
+      if (!e.licaoId) return e
+      const apontada = licoes.find((l) => l.id === e.licaoId)
+      if (apontada && !ehLicaoGeral(apontada)) {
+        const cat = catalogoDeLicao(licoes, apontada)
+        return { ...e, licaoId: cat.id }
+      }
+      return e
+    }
     const ger = geradoPorData.get(e.data)
     return ger && !removidas.has(ger.licaoId ?? '') ? ger : e
   })
@@ -178,7 +189,7 @@ export function hidratarLicoes(state: AppState): AppState {
     eventos.push(ev)
     datasLicao.add(ev.data)
   }
-  return { ...state, licoes, eventos, licoesRemovidas: state.licoesRemovidas ?? [] }
+  return { ...state, licoes, eventos, licoesRemovidas: [...removidas] }
 }
 
 export function hidratarEstado(state: AppState): AppState {
@@ -208,8 +219,9 @@ export function hidratarEstado(state: AppState): AppState {
 
 export function catalogoCresceu(antes: AppState, depois: AppState): boolean {
   return (
-    depois.licoes.length > (antes.licoes?.length ?? 0) ||
+    depois.licoes.length !== (antes.licoes?.length ?? 0) ||
     depois.eventos.length > (antes.eventos?.length ?? 0) ||
+    (depois.licoesRemovidas?.length ?? 0) > (antes.licoesRemovidas?.length ?? 0) ||
     !antes.modeloCertificado?.texto
   )
 }

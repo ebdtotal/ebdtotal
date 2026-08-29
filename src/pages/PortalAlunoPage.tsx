@@ -1,20 +1,27 @@
 import { Link } from 'react-router-dom'
-import { dataBR, fichaAluno, licaoDaData, rotuloTendencia } from '../lib/acompanhamento'
+import { catalogoDeLicao, fichaAluno, licaoDaData } from '../lib/acompanhamento'
 import { ROTULO_EVENTO } from '../lib/pedagogia'
 import { metaDaEscola, progressoMeta, frequenciaAtual } from '../lib/painel'
 import { useStore } from '../lib/store'
-import { aniversariantes } from '../lib/stats'
-import { formatDateBR, lastSunday, toISODate } from '../lib/utils'
+import { aniversariantes, rankingDe } from '../lib/stats'
+import { domingoDaAula, formatDateBR, toISODate } from '../lib/utils'
 
 export function PortalAlunoPage() {
   const { state, usuario } = useStore()
   const pessoa = state.pessoas.find((p) => p.id === usuario?.pessoaId)
   const ficha = pessoa ? fichaAluno(state, pessoa.id) : null
-  const hoje = toISODate(lastSunday())
+  const hoje = toISODate(domingoDaAula())
   const licao = licaoDaData(state.licoes, state.eventos, hoje, {
     turma: pessoa?.turma ?? usuario?.turma,
     escolaId: pessoa?.escolaId ?? usuario?.escolaId,
   })
+  const catalogoLicao = licao ? catalogoDeLicao(state.licoes, licao) : null
+  const turmaRank = pessoa?.turma ?? usuario?.turma
+  const rankingTurma = turmaRank
+    ? rankingDe(state, new Set([pessoa?.escolaId ?? usuario?.escolaId ?? ''].filter(Boolean)), turmaRank)
+    : []
+  const posicao = pessoa ? rankingTurma.findIndex((l) => l.pessoa.id === pessoa.id) + 1 : 0
+  const meusPontos = pessoa ? rankingTurma.find((l) => l.pessoa.id === pessoa.id)?.pontos ?? 0 : 0
   const nivers = aniversariantes(state.pessoas.filter((p) => p.escolaId === usuario?.escolaId), 14)
   const avisos = (state.avisos ?? []).filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
   const certs = state.certificados.filter((c) => c.pessoaId === pessoa?.id)
@@ -30,13 +37,52 @@ export function PortalAlunoPage() {
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card label="Frequência" value={`${ficha?.frequencia ?? 0}%`} />
-        <Card label="Tendência" value={ficha ? rotuloTendencia(ficha.tendencia) : '—'} />
-        <Card label="Última presença" value={dataBR(ficha?.ultimaPresenca ?? null)} />
+        <Card label="Pontos" value={`${meusPontos}`} />
+        <Card label="Posição na turma" value={posicao ? `${posicao}º de ${rankingTurma.length}` : '—'} />
         <Card
           label="Meta da turma"
           value={meta ? `${progressoMeta(ficha?.frequencia ?? 0, meta.frequencia)}%` : '—'}
         />
       </div>
+
+      {rankingTurma.length > 0 ? (
+        <section className="mb-5 rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-1 font-semibold">Ranking da turma</h2>
+          <p className="mb-3 text-sm text-muted">
+            {pessoa?.turma ? `Pontuação de ${pessoa.turma}` : 'Pontuação da classe'}
+            {posicao ? ` · você está em ${posicao}º com ${meusPontos} ${meusPontos === 1 ? 'ponto' : 'pontos'}` : ''}
+          </p>
+          <ol>
+            {rankingTurma.map((l, i) => {
+              const eu = l.pessoa.id === pessoa?.id
+              return (
+                <li
+                  key={l.pessoa.id}
+                  className={`flex items-center justify-between border-b border-line px-1 py-2.5 last:border-0 ${eu ? 'rounded-lg bg-gold/20 px-3' : ''}`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${i < 3 ? 'bg-gold/30 text-navy' : 'bg-page text-muted'}`}
+                    >
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">
+                        {l.pessoa.nome}
+                        {eu ? ' · você' : ''}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {l.presentes}/{l.aulas} presenças
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right text-sm font-semibold">{l.pontos} pts</div>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      ) : null}
 
       {ficha ? (
         <section className="mb-5 rounded-xl bg-white p-5 shadow-sm">
@@ -62,7 +108,7 @@ export function PortalAlunoPage() {
           <h2 className="mt-1 text-xl font-semibold">{licao.tema}</h2>
           <p className="mt-2 text-sm text-white/80">Versículo: {licao.versiculo}</p>
           <p className="mt-3 text-sm leading-6 text-white/90">{licao.resumo}</p>
-          <Link to={`/licao?id=${licao.id}`} className="mt-4 inline-block text-sm font-semibold text-gold">
+          <Link to={`/licao?id=${catalogoLicao?.id ?? licao.id}`} className="mt-4 inline-block text-sm font-semibold text-gold">
             Ver lição completa →
           </Link>
         </section>

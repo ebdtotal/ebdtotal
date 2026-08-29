@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { DateInput, Field, GhostButton, Modal, PrimaryButton, inputClass } from '../components/ui'
-import { copiarLicaoParaTurma, ehLicaoGeral, licaoDaTurma, licoesCatalogo } from '../lib/acompanhamento'
+import { catalogoDaData, catalogoDeLicao, copiarLicaoParaTurma, ehLicaoGeral, licaoDaTurma, licoesCatalogo } from '../lib/acompanhamento'
 import { nomeAulaPadrao, trimestreDe } from '../lib/pedagogia'
 import { useStore } from '../lib/store'
 import type { Licao } from '../lib/types'
-import { formatDateBR, lastSunday, parseISODate, toISODate, uid } from '../lib/utils'
+import { domingoDaAula, formatDateBR, parseISODate, toISODate, uid } from '../lib/utils'
 
 function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero' | 'tema'> & Partial<Licao>): Licao {
   return {
@@ -23,20 +23,32 @@ function licaoEmBranco(partial: Pick<Licao, 'id' | 'ano' | 'trimestre' | 'numero
 }
 
 export function LicaoPage() {
-  const { state, usuario, ehProfessor, podeEditarLicoes, podeEditarConteudoLicao, escolasVisiveis, saveLicao, removeLicao } =
+  const { state, usuario, ehProfessor, ehAluno, podeEditarLicoes, podeEditarConteudoLicao, escolasVisiveis, saveLicao, removeLicao } =
     useStore()
   const [params, setParams] = useSearchParams()
-  const hoje = toISODate(lastSunday())
+  const hoje = toISODate(domingoDaAula())
   const turmasDaIgreja = useMemo(() => {
     const ids = new Set(escolasVisiveis.map((e) => e.id))
     return (state.turmas ?? []).filter((t) => ids.has(t.escolaId)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   }, [state.turmas, escolasVisiveis])
+  const turmaUsuario =
+    usuario?.turma ||
+    state.pessoas.find((p) => p.id === usuario?.pessoaId)?.turma ||
+    ''
   const [escolaSel, setEscolaSel] = useState(usuario?.escolaId ?? escolasVisiveis[0]?.id ?? '')
-  const [turmaSel, setTurmaSel] = useState(ehProfessor ? (usuario?.turma ?? '') : '')
+  const [turmaSel, setTurmaSel] = useState(ehProfessor || ehAluno ? turmaUsuario : '')
   const catalogo = useMemo(() => licoesCatalogo(state.licoes), [state.licoes])
-  const atualCat = catalogo.find((l) => l.id === params.get('id')) ?? catalogo[0]
-  const id = params.get('id') || atualCat?.id || catalogo[0]?.id
-  const licaoCatalogo = catalogo.find((l) => l.id === id) ?? catalogo[0]
+  const daSemana = catalogoDaData(state.licoes, state.eventos, hoje)
+  const idParam = params.get('id')
+  const licaoCatalogo = useMemo(() => {
+    if (idParam) {
+      const direta = catalogo.find((l) => l.id === idParam)
+      if (direta) return direta
+      const apontada = state.licoes.find((l) => l.id === idParam)
+      if (apontada) return catalogoDeLicao(state.licoes, apontada)
+    }
+    return daSemana ?? catalogo[0]
+  }, [idParam, catalogo, state.licoes, daSemana])
   const licao = licaoCatalogo
     ? licaoDaTurma(state.licoes, licaoCatalogo, turmaSel || undefined, escolaSel || undefined)
     : undefined
@@ -45,14 +57,14 @@ export function LicaoPage() {
   const [dataAula, setDataAula] = useState(hoje)
   const anos = useMemo(() => [...new Set(catalogo.map((l) => l.ano))].sort((a, b) => b - a), [catalogo])
   const [ano, setAno] = useState(licaoCatalogo?.ano ?? anos[0] ?? 2026)
-  const [tri, setTri] = useState(licaoCatalogo?.trimestre ?? trimestreDe(lastSunday()))
+  const [tri, setTri] = useState(licaoCatalogo?.trimestre ?? trimestreDe(domingoDaAula()))
   const lista = catalogo.filter((l) => l.ano === ano && l.trimestre === tri)
   const turmaCadastro = turmasDaIgreja.find((t) => t.nome === turmaSel && (!escolaSel || t.escolaId === escolaSel))
   const ehVariante = !!licao && !ehLicaoGeral(licao)
 
   useEffect(() => {
-    if (ehProfessor) setTurmaSel(usuario?.turma ?? '')
-  }, [ehProfessor, usuario?.turma])
+    if (ehProfessor || ehAluno) setTurmaSel(turmaUsuario)
+  }, [ehProfessor, ehAluno, turmaUsuario])
 
   useEffect(() => {
     if (!licaoCatalogo) return
@@ -64,11 +76,15 @@ export function LicaoPage() {
 
   function abrirEdicao(base: Licao) {
     setDataAula(evento?.data ?? hoje)
-    if (turmaSel && ehLicaoGeral(base)) {
-      setEditando(copiarLicaoParaTurma(base, turmaSel, escolaSel || undefined, turmaCadastro?.faixaEtaria))
+    if (!turmaSel) {
+      setEditando(base)
       return
     }
-    setEditando(base)
+    if (!ehLicaoGeral(base)) {
+      setEditando(base)
+      return
+    }
+    setEditando(copiarLicaoParaTurma(licaoCatalogo ?? base, turmaSel, escolaSel || undefined, turmaCadastro?.faixaEtaria))
   }
 
   if (!licaoCatalogo || !licao) {
@@ -79,7 +95,7 @@ export function LicaoPage() {
           <PrimaryButton
             className="mt-3"
             onClick={() => {
-              const d = lastSunday()
+              const d = domingoDaAula()
               setDataAula(toISODate(d))
               setEditando(
                 licaoEmBranco({

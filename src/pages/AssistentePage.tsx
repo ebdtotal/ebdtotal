@@ -6,7 +6,7 @@ import { LicaoSelect } from '../components/LicaoSelect'
 import { assistentePedagogico } from '../lib/assistente'
 import { useStore } from '../lib/store'
 import { licaoDaData } from '../lib/acompanhamento'
-import { lastSunday, toISODate } from '../lib/utils'
+import { domingoDaAula, toISODate } from '../lib/utils'
 
 const SUGESTOES = [
   'Prepare uma dinâmica para adolescentes baseada na lição desta semana.',
@@ -19,7 +19,7 @@ const SUGESTOES = [
 export function AssistentePage() {
   const { state } = useStore()
   const [params] = useSearchParams()
-  const hoje = toISODate(lastSunday())
+  const hoje = toISODate(domingoDaAula())
   const inicial = params.get('licao') || licaoDaData(state.licoes, state.eventos, hoje)?.id || state.licoes[0]?.id
   const [licaoId, setLicaoId] = useState(inicial ?? '')
   const [faixa, setFaixa] = useState('Adolescentes')

@@ -6,7 +6,7 @@ import { catalogoDeLicao, licaoDaData, licoesCatalogo } from '../lib/acompanhame
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
 import type { Avaliacao } from '../lib/types'
-import { lastSunday, toISODate, uid } from '../lib/utils'
+import { domingoDaAula, toISODate, uid } from '../lib/utils'
 
 const VAZIA = {
   pergunta: 'Qual foi o principal ensinamento da lição?',
@@ -21,7 +21,7 @@ export function AvaliacaoPage() {
   const turmas = turmasDaEscola(state.pessoas, escolaId)
   const [turma, setTurma] = useState(usuario?.turma || turmas.find((t) => t === 'Primários A') || turmas[0] || '')
   const turmaAtual = ehProfessor && usuario?.turma ? usuario.turma : turma
-  const hoje = toISODate(lastSunday())
+  const hoje = toISODate(domingoDaAula())
   const licaoAtualRaw = licaoDaData(state.licoes, state.eventos, hoje, {
     turma: turmaAtual,
     escolaId,

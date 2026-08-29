@@ -1,5 +1,5 @@
 import type { AppState, Licao, Pessoa } from './types'
-import { formatDateBR, uid, whatsappUrl } from './utils'
+import { formatDateBR, whatsappUrl } from './utils'
 
 export type AulaMarca = { data: string; presente: boolean }
 
@@ -124,25 +124,87 @@ export function licoesCatalogo(licoes: Licao[]) {
   return licoes.filter(ehLicaoGeral)
 }
 
-export function licaoDaTurma(licoes: Licao[], catalogo: Licao, turma?: string, escolaId?: string): Licao {
+export function idCatalogoPadrao(l: Pick<Licao, 'ano' | 'trimestre' | 'numero'>) {
+  return `lic-${l.ano}-t${l.trimestre}-a${l.numero}`
+}
+
+function slugId(texto: string) {
+  return (
+    texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'x'
+  )
+}
+
+export function idLicaoDaTurma(base: Pick<Licao, 'ano' | 'trimestre' | 'numero'>, turma: string, escolaId?: string) {
+  return `lic-t-${base.ano}-t${base.trimestre}-a${base.numero}-${slugId(escolaId ?? '')}-${slugId(turma)}`
+}
+
+export function acharVarianteTurma(licoes: Licao[], catalogo: Licao, turma?: string, escolaId?: string): Licao | undefined {
   const t = (turma ?? '').trim().toLowerCase()
-  if (!t) return catalogo
+  if (!t) return undefined
   const mesmas = licoes.filter(
     (l) =>
-      (l.turma ?? '').trim().toLowerCase() === t &&
-      l.ano === catalogo.ano &&
-      l.trimestre === catalogo.trimestre &&
-      l.numero === catalogo.numero,
+      !ehLicaoGeral(l) &&
+      chaveAula(l) === chaveAula(catalogo) &&
+      (l.turma ?? '').trim().toLowerCase() === t,
   )
   if (escolaId) {
-    const daEscola = mesmas
-      .filter((l) => !l.escolaId || l.escolaId === escolaId)
-      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
-    if (daEscola[0]) return daEscola[0]
+    return mesmas.find((l) => l.escolaId === escolaId) ?? mesmas.find((l) => !l.escolaId)
   }
-  return (
-    [...mesmas].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0] ?? catalogo
-  )
+  return [...mesmas].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
+}
+
+export function licaoDaTurma(licoes: Licao[], catalogo: Licao, turma?: string, escolaId?: string): Licao {
+  return acharVarianteTurma(licoes, catalogo, turma, escolaId) ?? catalogo
+}
+
+function chaveVariante(l: Licao) {
+  const t = (l.turma ?? '').trim().toLowerCase()
+  if (!t) return `g|${chaveAula(l)}`
+  return `t|${chaveAula(l)}|${t}|${(l.escolaId ?? '').trim()}`
+}
+
+export function deduplicarLicoes(licoes: Licao[]): { licoes: Licao[]; extras: string[] } {
+  const grupos = new Map<string, Licao[]>()
+  for (const l of licoes) {
+    const k = chaveVariante(l)
+    grupos.set(k, [...(grupos.get(k) ?? []), l])
+  }
+  const keep: Licao[] = []
+  const extras: string[] = []
+  for (const [, lista] of grupos) {
+    if (lista.length === 1) {
+      keep.push(lista[0])
+      continue
+    }
+    const maisNova = [...lista].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
+    if (ehLicaoGeral(maisNova)) {
+      const canonId = lista.some((l) => l.id === idCatalogoPadrao(maisNova))
+        ? idCatalogoPadrao(maisNova)
+        : maisNova.id
+      const base = lista.find((l) => l.id === canonId) ?? maisNova
+      keep.push({
+        ...base,
+        ...maisNova,
+        id: canonId,
+        turma: undefined,
+        escolaId: undefined,
+      })
+      for (const l of lista) if (l.id !== canonId) extras.push(l.id)
+    } else {
+      keep.push(maisNova)
+      for (const l of lista) if (l.id !== maisNova.id) extras.push(l.id)
+    }
+  }
+  return {
+    licoes: keep.sort((a, b) => a.ano - b.ano || a.trimestre - b.trimestre || a.numero - b.numero),
+    extras,
+  }
 }
 
 export function catalogoDaData(licoes: Licao[], eventos: AppState['eventos'], data: string): Licao | null {
@@ -170,7 +232,7 @@ export function catalogoDaData(licoes: Licao[], eventos: AppState['eventos'], da
 export function copiarLicaoParaTurma(base: Licao, turma: string, escolaId?: string, faixaEtaria?: string): Licao {
   return {
     ...base,
-    id: uid('lic'),
+    id: idLicaoDaTurma(base, turma, escolaId),
     turma,
     escolaId,
     faixaEtaria,

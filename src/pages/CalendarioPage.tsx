@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Field, GhostButton, Modal, PrimaryButton, DateInput, inputClass } from '../components/ui'
 import { LicaoSelect } from '../components/LicaoSelect'
+import { licoesCatalogo } from '../lib/acompanhamento'
 import { ROTULO_EVENTO } from '../lib/pedagogia'
 import { useStore } from '../lib/store'
 import { TIPOS_EVENTO, type EventoCalendario, type Licao, type TipoEvento } from '../lib/types'
@@ -85,7 +86,7 @@ export function CalendarioPage() {
 
       <EventoModal
         evento={editing}
-        licoes={state.licoes}
+        licoes={licoesCatalogo(state.licoes)}
         onClose={() => setEditing(null)}
         onSave={(ev) => {
           saveEvento(ev)

@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
-import { licaoDaData } from '../lib/acompanhamento'
+import { catalogoDeLicao, licaoDaData } from '../lib/acompanhamento'
 import { ATALHOS, ROTULO_PERFIL, perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
-import { lastSunday, toISODate } from '../lib/utils'
+import { domingoDaAula, toISODate } from '../lib/utils'
 
 export function InicioPage() {
   const { usuario, escolasVisiveis, state } = useStore()
@@ -66,13 +66,14 @@ export function InicioPage() {
 
 function LicaoDaSemana() {
   const { state, usuario } = useStore()
-  const licao = licaoDaData(state.licoes, state.eventos, toISODate(lastSunday()), {
+  const licao = licaoDaData(state.licoes, state.eventos, toISODate(domingoDaAula()), {
     turma: usuario?.turma,
     escolaId: usuario?.escolaId,
   })
   if (!licao) return null
+  const catalogo = catalogoDeLicao(state.licoes, licao)
   return (
-    <Link to={`/licao?id=${licao.id}`} className="mb-5 block rounded-xl border-2 border-gold bg-white p-5 shadow-md">
+    <Link to={`/licao?id=${catalogo.id}`} className="mb-5 block rounded-xl border-2 border-gold bg-white p-5 shadow-md">
       <div className="text-xs font-semibold uppercase tracking-wide text-navy">Lição desta semana</div>
       <div className="mt-1 text-lg font-semibold text-navy">{licao.tema}</div>
       <div className="mt-1 text-sm text-navy/70">{licao.textoBiblico}</div>
