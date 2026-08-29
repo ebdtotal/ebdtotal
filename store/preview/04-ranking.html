@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body { width: 430px; height: 932px; font-family: Inter, sans-serif; background: #eef2f6; color: #152238; }
+      header { padding: 28px 20px 8px; }
+      h1 { font-size: 24px; }
+      p.muted { color: #64748b; font-size: 13px; margin-top: 4px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px; }
+      .stat { background: #fff; border-radius: 16px; padding: 14px; }
+      .stat span { font-size: 11px; color: #64748b; text-transform: uppercase; }
+      .stat b { display: block; font-size: 22px; margin-top: 4px; }
+      .list { margin: 8px 16px; background: #fff; border-radius: 16px; overflow: hidden; }
+      .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e8edf3; }
+      .row.me { background: rgba(201,162,39,.2); }
+      .pos { width: 32px; height: 32px; border-radius: 999px; background: #eef2f6; display: grid; place-items: center; font-weight: 800; margin-right: 10px; }
+      .gold { background: rgba(201,162,39,.35); }
+      .left { display: flex; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Olá, Ana</h1>
+      <p class="muted">Primários · sua semana na EBD</p>
+    </header>
+    <div class="grid">
+      <div class="stat"><span>Pontos</span><b>18</b></div>
+      <div class="stat"><span>Posição</span><b>2º de 4</b></div>
+    </div>
+    <div class="list">
+      <div class="row"><div class="left"><span class="pos gold">1</span>João Castro</div><b>21 pts</b></div>
+      <div class="row me"><div class="left"><span class="pos gold">2</span>Ana Souza · você</div><b>18 pts</b></div>
+      <div class="row"><div class="left"><span class="pos">3</span>Maria Alves</div><b>14 pts</b></div>
+      <div class="row"><div class="left"><span class="pos">4</span>Pedro Lima</div><b>9 pts</b></div>
+    </div>
+  </body>
+</html>

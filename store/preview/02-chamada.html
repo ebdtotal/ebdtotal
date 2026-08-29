@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body { width: 430px; height: 932px; font-family: Inter, sans-serif; background: #eef2f6; color: #152238; }
+      header { background: #152238; color: #fff; padding: 28px 20px 18px; }
+      header small { color: #c9a227; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { font-size: 24px; margin-top: 4px; }
+      .card { margin: 16px; background: #fff; border-radius: 16px; padding: 8px 4px; box-shadow: 0 1px 4px rgba(21,34,56,.08); }
+      .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e8edf3; }
+      .row:last-child { border-bottom: 0; }
+      .name { font-weight: 600; }
+      .ok { width: 28px; height: 28px; border-radius: 999px; background: #d1fae5; color: #047857; display: grid; place-items: center; font-weight: 800; }
+      .no { width: 28px; height: 28px; border-radius: 999px; background: #fee2e2; color: #b91c1c; display: grid; place-items: center; font-weight: 800; }
+      .bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0 16px; }
+      .stat { background: #fff; border-radius: 14px; padding: 12px; text-align: center; }
+      .stat b { display: block; font-size: 20px; }
+      .stat span { font-size: 11px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <small>Turma Primários</small>
+      <h1>Chamada</h1>
+    </header>
+    <div class="bar" style="margin-top:16px">
+      <div class="stat"><b>3</b><span>Presentes</span></div>
+      <div class="stat"><b>1</b><span>Ausente</span></div>
+      <div class="stat"><b>12</b><span>Pontos</span></div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="name">Ana Souza</span><span class="ok">✓</span></div>
+      <div class="row"><span class="name">João Castro</span><span class="ok">✓</span></div>
+      <div class="row"><span class="name">Maria Alves</span><span class="ok">✓</span></div>
+      <div class="row"><span class="name">Pedro Lima</span><span class="no">✗</span></div>
+    </div>
+  </body>
+</html>

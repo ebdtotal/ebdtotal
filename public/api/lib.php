@@ -182,6 +182,70 @@ function migrate(PDO $pdo): void {
     $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel) VALUES (?,?,?,?,?,?)')
       ->execute(['u-master', $tid, 'Itano', 'itano', password_hash('Itano1809@', PASSWORD_DEFAULT), 'admin']);
   }
+  garantir_igreja_revisao($pdo);
+}
+
+function garantir_igreja_revisao(PDO $pdo): void {
+  $st = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+  $st->execute(['apple.review']);
+  if ($st->fetch()) return;
+  $tid = 'igreja-revisao-apple';
+  $uid = 'u-apple-review';
+  $now = gmdate('c');
+  $senha = 'ReviewEbd2026!';
+  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    ->execute([$tid, 'Igreja revisão App Store', 'São Luís', 'Revisão Apple', 'revisao@ebdtotal.com', '98981258852', 'ativa', 'apple.review', $now]);
+  $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,escola_id,email) VALUES (?,?,?,?,?,?,?,?)')
+    ->execute([$uid, $tid, 'Revisão Apple', 'apple.review', password_hash($senha, PASSWORD_DEFAULT), 'sede', 'sede', 'revisao@ebdtotal.com']);
+  $seed = [
+    'escolas' => [[
+      'id' => 'sede',
+      'nome' => 'Igreja revisão App Store',
+      'setor' => 'Sede',
+      'bairro' => 'Centro',
+      'regional' => 'Regional 35',
+      'responsavel' => 'Revisão Apple',
+      'username' => 'apple.review',
+      'status' => 'Ativa',
+      'ativos' => 4,
+      'inativos' => 0,
+    ]],
+    'pessoas' => [
+      ['id' => 'p-rev-1', 'nome' => 'Ana Souza', 'dataNascimento' => '2014-03-12', 'turma' => 'Primários', 'faixaEtaria' => 'Primários', 'tipo' => 'Aluno', 'sexo' => 'Feminino', 'status' => 'Ativo', 'escolaId' => 'sede'],
+      ['id' => 'p-rev-2', 'nome' => 'Pedro Lima', 'dataNascimento' => '2013-07-02', 'turma' => 'Primários', 'faixaEtaria' => 'Primários', 'tipo' => 'Aluno', 'sexo' => 'Masculino', 'status' => 'Ativo', 'escolaId' => 'sede'],
+      ['id' => 'p-rev-3', 'nome' => 'Maria Alves', 'dataNascimento' => '2015-01-20', 'turma' => 'Primários', 'faixaEtaria' => 'Primários', 'tipo' => 'Aluno', 'sexo' => 'Feminino', 'status' => 'Ativo', 'escolaId' => 'sede'],
+      ['id' => 'p-rev-4', 'nome' => 'João Castro', 'dataNascimento' => '2014-11-08', 'turma' => 'Primários', 'faixaEtaria' => 'Primários', 'tipo' => 'Aluno', 'sexo' => 'Masculino', 'status' => 'Ativo', 'escolaId' => 'sede'],
+    ],
+    'turmas' => [['id' => 't-rev-1', 'nome' => 'Primários', 'escolaId' => 'sede', 'faixaEtaria' => 'Primários']],
+    'usuarios' => [[
+      'id' => $uid,
+      'nome' => 'Revisão Apple',
+      'username' => 'apple.review',
+      'senha' => $senha,
+      'papel' => 'sede',
+      'escolaId' => 'sede',
+      'email' => 'revisao@ebdtotal.com',
+    ]],
+    'setores' => [],
+    'relatorios' => [],
+    'lancamentos' => [],
+    'licoes' => [],
+    'eventos' => [],
+    'avaliacoes' => [],
+    'metas' => [['escolaId' => 'sede', 'frequencia' => 80, 'crescimento' => 10, 'visitantesMes' => 4, 'professoresCapacitados' => 2]],
+    'avisos' => [['id' => 'av-rev-1', 'titulo' => 'Bem-vindos à EBD', 'texto' => 'Conta de demonstração para revisão da App Store.', 'data' => gmdate('Y-m-d')]],
+    'desafios' => [],
+    'certificados' => [],
+    'licoesRemovidas' => [],
+    'cursos' => [],
+    'progressos' => [],
+    'rankingCompetitivo' => true,
+    'whatsapp' => '5598981258852',
+    'sessaoId' => null,
+  ];
+  $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
+    ->execute([$tid, json_encode($seed, JSON_UNESCAPED_UNICODE), $now]);
+  sync_cadastros($pdo, $tid, $seed);
 }
 
 function auth(): array {

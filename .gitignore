@@ -17,6 +17,7 @@ ios_distribution_private_key
 *.p12
 *.mobileprovision
 ios/App/build
+store/preview/logo.png
 
 # Editor directories and files
 .vscode/*
