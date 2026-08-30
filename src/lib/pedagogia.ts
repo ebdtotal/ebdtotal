@@ -1,7 +1,7 @@
 import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
 import { CAT_OFERTA_EBD_ID, CAT_REVISTAS_VENDIDAS_ID, garantirCategorias, garantirSetoresEbd, idCategoria, idLancRevista, revistaGeraReceita } from './ebdSetores'
-import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, LancamentoFinanceiro, Licao, MetaEscola, TipoEvento } from './types'
+import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
 
 export const ROTULO_EVENTO: Record<TipoEvento, string> = {

@@ -773,6 +773,7 @@ function AbaRelatorios() {
                 ))}
               </select>
             </Field>
+            <div className="flex justify-end gap-2">
               <GhostButton type="button" onClick={() => setEditing(null)}>
                 Cancelar
               </GhostButton>
