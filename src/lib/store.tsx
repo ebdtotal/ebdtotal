@@ -25,6 +25,7 @@ import type {
   Avaliacao,
   Aviso,
   Certificado,
+  CategoriaFinanceira,
   CursoProfessor,
   Escola,
   EventoCalendario,
@@ -34,7 +35,9 @@ import type {
   ModeloCertificado,
   Pessoa,
   RelatorioDiario,
+  RevistaControle,
   SetorAcesso,
+  SetorEbd,
   TurmaCadastro,
   Usuario,
 } from './types'
@@ -74,6 +77,12 @@ function loadState(): AppState {
       eventosRemovidos: parsed.eventosRemovidos ?? seed.eventosRemovidos,
       setoresRemovidos: parsed.setoresRemovidos ?? seed.setoresRemovidos,
       cursosRemovidos: parsed.cursosRemovidos ?? seed.cursosRemovidos,
+      categoriasFinanceiras: parsed.categoriasFinanceiras ?? seed.categoriasFinanceiras,
+      setoresEbd: parsed.setoresEbd ?? seed.setoresEbd,
+      revistas: parsed.revistas ?? seed.revistas,
+      categoriasRemovidas: parsed.categoriasRemovidas ?? seed.categoriasRemovidas,
+      setoresEbdRemovidos: parsed.setoresEbdRemovidos ?? seed.setoresEbdRemovidos,
+      revistasRemovidas: parsed.revistasRemovidas ?? seed.revistasRemovidas,
       cursos: parsed.cursos?.length ? parsed.cursos : seed.cursos,
       progressos: parsed.progressos ?? seed.progressos,
       rankingCompetitivo: parsed.rankingCompetitivo ?? false,
@@ -304,6 +313,12 @@ type StoreValue = {
   saveRelatorio: (relatorio: RelatorioDiario) => void
   saveLancamento: (lancamento: LancamentoFinanceiro) => void
   removeLancamento: (id: string) => void
+  saveCategoriaFinanceira: (categoria: CategoriaFinanceira) => void
+  removeCategoriaFinanceira: (id: string) => void
+  saveSetorEbd: (setor: SetorEbd) => void
+  removeSetorEbd: (id: string) => void
+  saveRevista: (revista: RevistaControle) => void
+  removeRevista: (id: string) => void
   setWhatsapp: (numero: string) => void
   addSetor: (nome: string) => void
   renameSetor: (id: string, nome: string) => void
@@ -577,11 +592,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const saveTurma = useCallback((turma: TurmaCadastro) => {
     commit((prev) => {
       const turmas = prev.turmas ?? []
-      const exists = turmas.some((t) => t.id === turma.id)
+      const gravar = { ...turma, updatedAt: agoraIso() }
+      const exists = turmas.some((t) => t.id === gravar.id)
       return {
         ...prev,
-        turmas: exists ? turmas.map((t) => (t.id === turma.id ? turma : t)) : [...turmas, turma],
-        turmasRemovidas: tirarRemovido(prev.turmasRemovidas, turma.id),
+        turmas: exists ? turmas.map((t) => (t.id === gravar.id ? gravar : t)) : [...turmas, gravar],
+        turmasRemovidas: tirarRemovido(prev.turmasRemovidas, gravar.id),
       }
     }, true)
   }, [commit])
@@ -653,14 +669,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const saveLancamento = useCallback((lancamento: LancamentoFinanceiro) => {
     commit((prev) => {
-      const exists = prev.lancamentos.some((l) => l.id === lancamento.id)
+      const gravar = { ...lancamento, updatedAt: agoraIso() }
+      const exists = prev.lancamentos.some((l) => l.id === gravar.id)
       const lancamentos = exists
-        ? prev.lancamentos.map((l) => (l.id === lancamento.id ? lancamento : l))
-        : [...prev.lancamentos, lancamento]
+        ? prev.lancamentos.map((l) => (l.id === gravar.id ? gravar : l))
+        : [...prev.lancamentos, gravar]
       return {
         ...prev,
         lancamentos,
-        lancamentosRemovidos: tirarRemovido(prev.lancamentosRemovidos, lancamento.id),
+        lancamentosRemovidos: tirarRemovido(prev.lancamentosRemovidos, gravar.id),
       }
     }, true)
   }, [commit])
@@ -671,6 +688,85 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...prev,
         lancamentos: prev.lancamentos.filter((l) => l.id !== id),
         lancamentosRemovidos: marcarRemovidos(prev.lancamentosRemovidos, [id]),
+      }),
+      true,
+    )
+  }, [commit])
+
+  const saveCategoriaFinanceira = useCallback((categoria: CategoriaFinanceira) => {
+    commit((prev) => {
+      const lista = prev.categoriasFinanceiras ?? []
+      const gravar = { ...categoria, updatedAt: agoraIso() }
+      const categoriasFinanceiras = lista.some((c) => c.id === gravar.id)
+        ? lista.map((c) => (c.id === gravar.id ? gravar : c))
+        : [...lista, gravar]
+      return {
+        ...prev,
+        categoriasFinanceiras,
+        categoriasRemovidas: tirarRemovido(prev.categoriasRemovidas, gravar.id),
+      }
+    }, true)
+  }, [commit])
+
+  const removeCategoriaFinanceira = useCallback((id: string) => {
+    commit(
+      (prev) => ({
+        ...prev,
+        categoriasFinanceiras: (prev.categoriasFinanceiras ?? []).filter((c) => c.id !== id),
+        categoriasRemovidas: marcarRemovidos(prev.categoriasRemovidas, [id]),
+      }),
+      true,
+    )
+  }, [commit])
+
+  const saveSetorEbd = useCallback((setor: SetorEbd) => {
+    commit((prev) => {
+      const lista = prev.setoresEbd ?? []
+      const gravar = { ...setor, updatedAt: agoraIso() }
+      const setoresEbd = lista.some((s) => s.id === gravar.id)
+        ? lista.map((s) => (s.id === gravar.id ? gravar : s))
+        : [...lista, gravar]
+      return {
+        ...prev,
+        setoresEbd,
+        setoresEbdRemovidos: tirarRemovido(prev.setoresEbdRemovidos, gravar.id),
+      }
+    }, true)
+  }, [commit])
+
+  const removeSetorEbd = useCallback((id: string) => {
+    commit(
+      (prev) => ({
+        ...prev,
+        setoresEbd: (prev.setoresEbd ?? []).filter((s) => s.id !== id),
+        turmas: (prev.turmas ?? []).map((t) => (t.setorId === id ? { ...t, setorId: undefined } : t)),
+        setoresEbdRemovidos: marcarRemovidos(prev.setoresEbdRemovidos, [id]),
+      }),
+      true,
+    )
+  }, [commit])
+
+  const saveRevista = useCallback((revista: RevistaControle) => {
+    commit((prev) => {
+      const lista = prev.revistas ?? []
+      const gravar = { ...revista, updatedAt: agoraIso() }
+      const revistas = lista.some((r) => r.id === gravar.id)
+        ? lista.map((r) => (r.id === gravar.id ? gravar : r))
+        : [...lista, gravar]
+      return {
+        ...prev,
+        revistas,
+        revistasRemovidas: tirarRemovido(prev.revistasRemovidas, gravar.id),
+      }
+    }, true)
+  }, [commit])
+
+  const removeRevista = useCallback((id: string) => {
+    commit(
+      (prev) => ({
+        ...prev,
+        revistas: (prev.revistas ?? []).filter((r) => r.id !== id),
+        revistasRemovidas: marcarRemovidos(prev.revistasRemovidas, [id]),
       }),
       true,
     )
@@ -994,6 +1090,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveRelatorio,
       saveLancamento,
       removeLancamento,
+      saveCategoriaFinanceira,
+      removeCategoriaFinanceira,
+      saveSetorEbd,
+      removeSetorEbd,
+      saveRevista,
+      removeRevista,
       setWhatsapp,
       addSetor,
       renameSetor,
@@ -1048,6 +1150,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveRelatorio,
       saveLancamento,
       removeLancamento,
+      saveCategoriaFinanceira,
+      removeCategoriaFinanceira,
+      saveSetorEbd,
+      removeSetorEbd,
+      saveRevista,
+      removeRevista,
       setWhatsapp,
       addSetor,
       renameSetor,

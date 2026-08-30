@@ -1,21 +1,56 @@
-import { Cake, MessageCircle, UserX } from 'lucide-react'
+import { Cake, GraduationCap, MessageCircle, UserX } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { alertasMudancaFaixa } from '../lib/faixa'
+import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { aniversariantes, ausentesRecentes, nomeEscola } from '../lib/stats'
 import { formatDateBR, whatsappUrl } from '../lib/utils'
 
 export function AlertasPage() {
-  const { state, escolasVisiveis, pessoasVisiveis } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, usuario } = useStore()
+  const perfil = perfilDe(usuario?.papel)
   const ids = useMemo(() => new Set(escolasVisiveis.map((e) => e.id)), [escolasVisiveis])
   const ausentes = ausentesRecentes(state, ids)
   const nivers = aniversariantes(pessoasVisiveis, 7)
+  const faixas =
+    perfil === 'professor' || perfil === 'superintendente'
+      ? alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? [])
+      : []
 
   return (
     <div>
       <h1 className="text-2xl font-semibold text-ink">Alertas</h1>
-      <p className="mb-5 text-sm text-muted">Alunos ausentes e aniversariantes da semana</p>
+      <p className="mb-5 text-sm text-muted">Ausentes, aniversariantes e mudança de faixa etária</p>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {faixas.length > 0 || perfil === 'professor' || perfil === 'superintendente' ? (
+          <section className="rounded-xl bg-white p-5 shadow-sm lg:col-span-2">
+            <h2 className="mb-3 flex items-center gap-2 font-semibold">
+              <GraduationCap size={18} className="text-navy" /> Mudança de faixa etária
+            </h2>
+            {faixas.length === 0 ? (
+              <p className="text-sm text-muted">Nenhum aluno precisa migrar de faixa no próximo trimestre.</p>
+            ) : (
+              <ul className="space-y-2">
+                {faixas.map((a) => (
+                  <li key={a.pessoa.id} className="rounded-md border-l-4 border-navy bg-slate-50 px-3 py-2">
+                    <div className="font-medium">
+                      <Link to={`/alunos/${a.pessoa.id}`} className="hover:underline">
+                        {a.pessoa.nome}
+                      </Link>
+                    </div>
+                    <div className="text-sm text-ink">
+                      {a.idade} anos · no próximo trimestre deverá migrar de {a.faixaAtual} para {a.faixaNova}.
+                    </div>
+                    <div className="text-xs text-muted">
+                      {a.pessoa.turma} · {nomeEscola(state.escolas, a.pessoa.escolaId)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 font-semibold">
             <UserX size={18} className="text-amber-600" /> Alunos ausentes

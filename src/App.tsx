@@ -34,6 +34,7 @@ import { RankingPage } from './pages/RankingPage'
 import { RelatorioAulaPage } from './pages/RelatorioAulaPage'
 import { RelatorioFilialPage } from './pages/RelatorioFilialPage'
 import { RelatorioPage } from './pages/RelatorioPage'
+import { SetoresPage } from './pages/SetoresPage'
 import { ResumosPage } from './pages/ResumosPage'
 import { TurmasPage } from './pages/TurmasPage'
 
@@ -171,6 +172,7 @@ export default function App() {
       <Route path="/cadastros" element={<Staff><CadastrosPage /></Staff>} />
       <Route path="/atividades" element={<Staff><AtividadesPage /></Staff>} />
       <Route path="/turmas" element={<Staff><TurmasPage /></Staff>} />
+      <Route path="/setores" element={<Staff><SetoresPage /></Staff>} />
       <Route path="/escolas" element={<Staff><EscolasPage /></Staff>} />
       <Route path="/rankings" element={<Staff><RankingPage /></Staff>} />
       <Route path="/alertas" element={<Staff><AlertasPage /></Staff>} />

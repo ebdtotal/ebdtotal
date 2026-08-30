@@ -229,6 +229,9 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'setores' => [],
     'relatorios' => [],
     'lancamentos' => [],
+    'categoriasFinanceiras' => [],
+    'setoresEbd' => [],
+    'revistas' => [],
     'licoes' => [],
     'eventos' => [],
     'avaliacoes' => [],
@@ -248,6 +251,9 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'eventosRemovidos' => [],
     'setoresRemovidos' => [],
     'cursosRemovidos' => [],
+    'categoriasRemovidas' => [],
+    'setoresEbdRemovidos' => [],
+    'revistasRemovidas' => [],
     'cursos' => [],
     'progressos' => [],
     'rankingCompetitivo' => true,
@@ -557,7 +563,7 @@ function papel_do_tipo(string $tipo): ?string {
 }
 
 function stamp_missing_updated_at(array $state, string $ts): array {
-  $campos = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos'];
+  $campos = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos', 'categoriasFinanceiras', 'setoresEbd', 'revistas'];
   foreach ($campos as $campo) {
     if (!isset($state[$campo]) || !is_array($state[$campo])) continue;
     foreach ($state[$campo] as $i => $item) {
@@ -898,7 +904,7 @@ function merge_relatorios(array $old, array $new): array {
 
 function merge_state(array $old, array $new): array {
   $out = array_merge($old, $new);
-  $listas = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos'];
+  $listas = ['pessoas', 'escolas', 'turmas', 'usuarios', 'lancamentos', 'avaliacoes', 'avisos', 'certificados', 'eventos', 'licoes', 'setores', 'cursos', 'categoriasFinanceiras', 'setoresEbd', 'revistas'];
   foreach ($listas as $campo) {
     $out[$campo] = merge_by_id(
       is_array($old[$campo] ?? null) ? $old[$campo] : [],
@@ -959,6 +965,9 @@ function campos_tombstone(): array {
     'licoes' => 'licoesRemovidas',
     'setores' => 'setoresRemovidos',
     'cursos' => 'cursosRemovidos',
+    'categoriasFinanceiras' => 'categoriasRemovidas',
+    'setoresEbd' => 'setoresEbdRemovidos',
+    'revistas' => 'revistasRemovidas',
   ];
 }
 

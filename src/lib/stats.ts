@@ -1,6 +1,6 @@
 import type { AppState, ChamadaAluno, Escola, Pessoa } from './types'
 import { pontosAvaliacaoDe, pontosDe } from './types'
-import { aniversarioNoPeriodo, idadeEm, noAno, noTrimestre } from './utils'
+import { aniversarioNoPeriodo, idadeEm, noAno, noTrimestre, pct } from './utils'
 
 export type RankingLinha = {
   pessoa: Pessoa
@@ -210,4 +210,84 @@ export function ultimaChamada(a: ChamadaAluno | undefined): string {
   if (!a) return 'Sem registro'
   if (a.presente) return 'Presente'
   return 'Ausente'
+}
+
+export function datasAulasEscola(state: AppState, escolaId: string): string[] {
+  return [...new Set(state.relatorios.filter((r) => r.escolaId === escolaId && r.alunos.length).map((r) => r.data))].sort()
+}
+
+export type PeriodoTurma =
+  | { tipo: 'ultimas'; n: number }
+  | { tipo: 'trimestre'; ano: number; tri: number }
+  | { tipo: 'ano'; ano: number }
+  | { tipo: 'intervalo'; de: string; ate: string }
+
+export function rotuloPeriodoTurma(p: PeriodoTurma): string {
+  if (p.tipo === 'ultimas') return `Últimas ${p.n} aulas`
+  if (p.tipo === 'trimestre') return `${p.tri}º trimestre de ${p.ano}`
+  if (p.tipo === 'ano') return String(p.ano)
+  return `${p.de} — ${p.ate}`
+}
+
+export function aplicarPeriodoTurma(datas: string[], p: PeriodoTurma): string[] {
+  const ordenadas = [...datas].sort()
+  if (p.tipo === 'ultimas') return ordenadas.slice(-p.n)
+  if (p.tipo === 'trimestre') return ordenadas.filter((d) => noTrimestre(d, p.ano, p.tri))
+  if (p.tipo === 'ano') return ordenadas.filter((d) => noAno(d, p.ano))
+  return ordenadas.filter((d) => d >= p.de && d <= p.ate)
+}
+
+export type AulaTurmaPonto = {
+  data: string
+  presentes: number
+  ausentes: number
+  visitantes: number
+  matriculados: number
+}
+
+export function painelTurma(state: AppState, escolaId: string, turma: string, datas: string[]) {
+  const alunos = state.pessoas.filter(
+    (p) => p.escolaId === escolaId && p.turma === turma && p.tipo === 'Aluno' && p.status === 'Ativo',
+  )
+  const aulas: AulaTurmaPonto[] = datas.map((data) => {
+    const r = state.relatorios.find((x) => x.escolaId === escolaId && x.data === data)
+    const presentes = alunos.filter((p) => r?.alunos.find((a) => a.pessoaId === p.id)?.presente).length
+    return {
+      data,
+      presentes,
+      ausentes: Math.max(0, alunos.length - presentes),
+      visitantes: 0,
+      matriculados: alunos.length,
+    }
+  })
+  const n = aulas.length
+  const somaPre = aulas.reduce((a, x) => a + x.presentes, 0)
+  const somaAus = aulas.reduce((a, x) => a + x.ausentes, 0)
+  const somaVis = aulas.reduce((a, x) => a + x.visitantes, 0)
+  const somaMat = aulas.reduce((a, x) => a + x.matriculados, 0)
+  const ranking = alunos
+    .map((pessoa) => {
+      let presentes = 0
+      let pontos = 0
+      for (const data of datas) {
+        const r = state.relatorios.find((x) => x.escolaId === escolaId && x.data === data)
+        const row = r?.alunos.find((a) => a.pessoaId === pessoa.id)
+        if (row?.presente) presentes += 1
+        if (row) pontos += pontosDe(row)
+      }
+      return { pessoa, presentes, pontos, aulas: n }
+    })
+    .sort((a, b) => b.presentes - a.presentes || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'))
+
+  return {
+    alunos: alunos.length,
+    aulas,
+    presentesUltima: aulas[aulas.length - 1]?.presentes ?? 0,
+    aproveitamento: pct(somaPre, somaMat),
+    mediaPre: n ? somaPre / n : 0,
+    mediaAus: n ? somaAus / n : 0,
+    mediaVis: n ? somaVis / n : 0,
+    rankingPresenca: ranking,
+    rankingPontos: [...ranking].sort((a, b) => b.pontos - a.pontos || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR')),
+  }
 }

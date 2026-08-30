@@ -11,6 +11,7 @@ import {
   KeyRound,
   Layers,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Megaphone,
   Menu,
@@ -29,6 +30,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { mobileDoPerfil, navDoPerfil, perfilDe, ROTULO_PERFIL } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { aniversariantes, ausentesRecentes } from '../lib/stats'
+import { alertasMudancaFaixa } from '../lib/faixa'
 import { whatsappUrl } from '../lib/utils'
 import { Logo } from './Logo'
 import { TemaToggle } from './TemaToggle'
@@ -51,6 +53,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/cadastros': Users,
   '/atividades': History,
   '/turmas': Layers,
+  '/setores': LayoutGrid,
   '/escolas': Building2,
   '/rankings': Trophy,
   '/financeiro': Wallet,
@@ -70,8 +73,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const nav = usuario?.papel === 'admin' ? [{ to: '/master', label: 'Igrejas' }, ...base] : base
   const mobile = mobileDoPerfil(perfil)
   const ids = useMemo(() => new Set(escolasVisiveis.map((e) => e.id)), [escolasVisiveis])
+  const nFaixa =
+    perfil === 'professor' || perfil === 'superintendente'
+      ? alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? []).length
+      : 0
   const nAlertas =
-    ausentesRecentes(state, ids).length + aniversariantes(pessoasVisiveis, 7).length
+    ausentesRecentes(state, ids).length + aniversariantes(pessoasVisiveis, 7).length + nFaixa
 
   return (
     <div className="app-navy flex h-full min-h-[var(--app-min-h,100dvh)] flex-col pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">

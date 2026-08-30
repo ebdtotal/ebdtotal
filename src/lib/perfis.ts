@@ -56,6 +56,7 @@ const NAV: Record<PerfilApp, NavItem[]> = {
     { to: '/cadastros', label: 'Cadastros' },
     { to: '/atividades', label: 'Atividades' },
     { to: '/turmas', label: 'Turmas' },
+    { to: '/setores', label: 'Setores' },
     { to: '/escolas', label: 'Escolas' },
     { to: '/calendario', label: 'Calendário' },
     { to: '/licao', label: 'Lição' },
@@ -74,6 +75,7 @@ const NAV: Record<PerfilApp, NavItem[]> = {
     { to: '/chamada', label: 'Chamada' },
     { to: '/cadastros', label: 'Cadastros' },
     { to: '/turmas', label: 'Turmas' },
+    { to: '/setores', label: 'Setores' },
     { to: '/alertas', label: 'Alertas' },
     { to: '/aula', label: 'Por aula' },
     { to: '/resumos', label: 'Resumos' },
@@ -145,7 +147,7 @@ export const ATALHOS: Record<Exclude<PerfilApp, 'aluno'>, { to: string; search?:
     { to: '/avisos', label: 'Avisos', texto: 'Comunicados da EBD' },
     { to: '/certificados', label: 'Certificados', texto: 'Emitir PDF para a turma' },
     { to: '/formacao', label: 'Escola de Professores', texto: 'Cursos curtos' },
-    { to: '/alertas', label: 'Ausentes', texto: 'Quem precisa de contato' },
+    { to: '/alertas', label: 'Ausentes', texto: 'Quem precisa de contato e faixa etária' },
   ],
   superintendente: [
     { to: '/chamada', label: 'Chamada das classes', texto: 'Presença de cada turma' },
@@ -158,7 +160,7 @@ export const ATALHOS: Record<Exclude<PerfilApp, 'aluno'>, { to: string; search?:
     { to: '/escolas', label: 'Escolas', texto: 'Congregações da rede' },
     { to: '/avisos', label: 'Avisos', texto: 'Publicar para toda a EBD' },
     { to: '/certificados', label: 'Certificados', texto: 'Modelo e emissão em PDF' },
-    { to: '/alertas', label: 'Alertas', texto: 'Faltas e aniversários' },
+    { to: '/alertas', label: 'Alertas', texto: 'Faltas, aniversários e faixa etária' },
   ],
   secretario: [
     { to: '/relatorio', label: 'Relatório diário', texto: 'Lançar o domingo' },

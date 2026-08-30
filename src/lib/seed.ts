@@ -9,6 +9,7 @@ import type {
 } from './types'
 import { chamadaVazia } from './types'
 import { AVISOS, CURSOS, DESAFIOS, eventosSeed, hidratarEstado, LICOES, metasSeed } from './pedagogia'
+import { CATEGORIAS_FINANCEIRAS_PADRAO, SETORES_EBD_PADRAO } from './ebdSetores'
 import { WHATSAPP_SUPORTE } from './utils'
 
 const E = {
@@ -329,6 +330,9 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
     setores: [],
     relatorios: [],
     lancamentos: [],
+    categoriasFinanceiras: CATEGORIAS_FINANCEIRAS_PADRAO,
+    setoresEbd: SETORES_EBD_PADRAO,
+    revistas: [],
     licoes: LICOES,
     eventos: eventosSeed(),
     avaliacoes: [],
@@ -349,6 +353,9 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
     eventosRemovidos: [],
     setoresRemovidos: [],
     cursosRemovidos: [],
+    categoriasRemovidas: [],
+    setoresEbdRemovidos: [],
+    revistasRemovidas: [],
     cursos: CURSOS,
     progressos: [],
     rankingCompetitivo: false,

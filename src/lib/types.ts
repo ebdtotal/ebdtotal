@@ -66,6 +66,8 @@ export type TurmaCadastro = {
   nome: string
   escolaId: string
   faixaEtaria: FaixaEtaria
+  setorId?: string
+  updatedAt?: string
 }
 
 export type Usuario = {
@@ -125,6 +127,38 @@ export type LancamentoFinanceiro = {
   descricao: string
   valor: number
   turma?: string
+  categoriaId?: string
+  updatedAt?: string
+}
+
+export const NATUREZAS_FINANCEIRAS = ['receita', 'despesa'] as const
+export type NaturezaFinanceira = (typeof NATUREZAS_FINANCEIRAS)[number]
+
+export type CategoriaFinanceira = {
+  id: string
+  nome: string
+  natureza: NaturezaFinanceira
+  updatedAt?: string
+}
+
+export type SetorEbd = {
+  id: string
+  nome: string
+  updatedAt?: string
+}
+
+export type RevistaControle = {
+  id: string
+  pessoaId: string
+  escolaId: string
+  turma: string
+  ano: number
+  trimestre: number
+  pediu: boolean
+  recebeu: boolean
+  pagou: boolean
+  valor: number
+  dataPagamento?: string
   updatedAt?: string
 }
 
@@ -253,6 +287,9 @@ export type AppState = {
   setores: SetorAcesso[]
   relatorios: RelatorioDiario[]
   lancamentos: LancamentoFinanceiro[]
+  categoriasFinanceiras: CategoriaFinanceira[]
+  setoresEbd: SetorEbd[]
+  revistas: RevistaControle[]
   licoes: Licao[]
   eventos: EventoCalendario[]
   avaliacoes: Avaliacao[]
@@ -273,6 +310,9 @@ export type AppState = {
   eventosRemovidos?: string[]
   setoresRemovidos?: string[]
   cursosRemovidos?: string[]
+  categoriasRemovidas?: string[]
+  setoresEbdRemovidos?: string[]
+  revistasRemovidas?: string[]
   cursos: CursoProfessor[]
   progressos: ProgressoCurso[]
   rankingCompetitivo: boolean

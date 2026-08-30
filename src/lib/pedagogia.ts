@@ -1,5 +1,6 @@
 import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
+import { garantirCategorias, garantirSetoresEbd } from './ebdSetores'
 import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
 
@@ -202,6 +203,9 @@ export function hidratarEstado(state: AppState): AppState {
     setores: state.setores ?? [],
     relatorios: state.relatorios ?? [],
     lancamentos: state.lancamentos ?? [],
+    categoriasFinanceiras: state.categoriasFinanceiras ?? [],
+    setoresEbd: state.setoresEbd ?? [],
+    revistas: state.revistas ?? [],
     licoes: state.licoes ?? [],
     eventos: state.eventos ?? [],
     avaliacoes: state.avaliacoes ?? [],
@@ -223,9 +227,17 @@ export function hidratarEstado(state: AppState): AppState {
     eventosRemovidos: state.eventosRemovidos ?? [],
     setoresRemovidos: state.setoresRemovidos ?? [],
     cursosRemovidos: state.cursosRemovidos ?? [],
+    categoriasRemovidas: state.categoriasRemovidas ?? [],
+    setoresEbdRemovidos: state.setoresEbdRemovidos ?? [],
+    revistasRemovidas: state.revistasRemovidas ?? [],
     modeloCertificado: state.modeloCertificado?.texto ? { ...MODELO_CERTIFICADO_PADRAO, ...state.modeloCertificado } : MODELO_CERTIFICADO_PADRAO,
   })
-  return aplicarTumbas(next)
+  const limpo = aplicarTumbas(next)
+  return {
+    ...limpo,
+    categoriasFinanceiras: garantirCategorias(limpo.categoriasFinanceiras, limpo.categoriasRemovidas),
+    setoresEbd: garantirSetoresEbd(limpo.setoresEbd, limpo.setoresEbdRemovidos),
+  }
 }
 
 function semRemovidos<T extends { id: string }>(lista: T[], ids?: string[]): T[] {
@@ -253,6 +265,9 @@ export function aplicarTumbas(state: AppState): AppState {
     licoes: semRemovidos(state.licoes ?? [], state.licoesRemovidas),
     setores: semRemovidos(state.setores ?? [], state.setoresRemovidos),
     cursos: semRemovidos(state.cursos ?? [], state.cursosRemovidos),
+    categoriasFinanceiras: semRemovidos(state.categoriasFinanceiras ?? [], state.categoriasRemovidas),
+    setoresEbd: semRemovidos(state.setoresEbd ?? [], state.setoresEbdRemovidos),
+    revistas: semRemovidos(state.revistas ?? [], state.revistasRemovidas),
   }
 }
 
@@ -261,6 +276,8 @@ export function catalogoCresceu(antes: AppState, depois: AppState): boolean {
     depois.licoes.length !== (antes.licoes?.length ?? 0) ||
     depois.eventos.length > (antes.eventos?.length ?? 0) ||
     (depois.licoesRemovidas?.length ?? 0) > (antes.licoesRemovidas?.length ?? 0) ||
+    (!(antes.setoresEbd?.length) && depois.setoresEbd.length > 0) ||
+    (!(antes.categoriasFinanceiras?.length) && depois.categoriasFinanceiras.length > 0) ||
     !antes.modeloCertificado?.texto
   )
 }
