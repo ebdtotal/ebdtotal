@@ -64,7 +64,7 @@ export function SetoresPage() {
         const r = state.relatorios.find((x) => x.escolaId === turma.escolaId && x.data === data)
         const alunosTurma = (r?.alunos ?? []).filter((a) => {
           const p = state.pessoas.find((x) => x.id === a.pessoaId)
-          return p && p.turma === turma.nome
+          return p && p.tipo === 'Aluno' && p.turma === turma.nome && p.escolaId === turma.escolaId
         })
         const matriculados =
           state.pessoas.filter(

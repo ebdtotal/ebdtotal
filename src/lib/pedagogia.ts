@@ -1,7 +1,7 @@
 import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
-import { garantirCategorias, garantirSetoresEbd } from './ebdSetores'
-import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
+import { CAT_REVISTAS_VENDIDAS_ID, garantirCategorias, garantirSetoresEbd } from './ebdSetores'
+import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, LancamentoFinanceiro, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
 
 export const ROTULO_EVENTO: Record<TipoEvento, string> = {
@@ -233,11 +233,37 @@ export function hidratarEstado(state: AppState): AppState {
     modeloCertificado: state.modeloCertificado?.texto ? { ...MODELO_CERTIFICADO_PADRAO, ...state.modeloCertificado } : MODELO_CERTIFICADO_PADRAO,
   })
   const limpo = aplicarTumbas(next)
-  return {
+  const comCategorias = {
     ...limpo,
     categoriasFinanceiras: garantirCategorias(limpo.categoriasFinanceiras, limpo.categoriasRemovidas),
     setoresEbd: garantirSetoresEbd(limpo.setoresEbd, limpo.setoresEbdRemovidos),
   }
+  return garantirLancamentosRevistas(comCategorias)
+}
+
+function garantirLancamentosRevistas(state: AppState): AppState {
+  const removidos = new Set(state.lancamentosRemovidos ?? [])
+  const ids = new Set(state.lancamentos.map((l) => l.id))
+  const extras: LancamentoFinanceiro[] = []
+  for (const r of state.revistas ?? []) {
+    if (!r.pagou || r.valor <= 0) continue
+    const lancId = `revpag_${r.id}`
+    if (ids.has(lancId) || removidos.has(lancId)) continue
+    const pessoa = state.pessoas.find((p) => p.id === r.pessoaId)
+    extras.push({
+      id: lancId,
+      escolaId: r.escolaId,
+      data: r.dataPagamento || toISODate(new Date()),
+      tipo: 'outro',
+      descricao: `Revista ${r.trimestre}º/${r.ano} — ${pessoa?.nome ?? 'aluno'}`,
+      valor: r.valor,
+      turma: r.turma,
+      categoriaId: CAT_REVISTAS_VENDIDAS_ID,
+    })
+    ids.add(lancId)
+  }
+  if (!extras.length) return state
+  return { ...state, lancamentos: [...state.lancamentos, ...extras] }
 }
 
 function semRemovidos<T extends { id: string }>(lista: T[], ids?: string[]): T[] {
@@ -271,6 +297,12 @@ export function aplicarTumbas(state: AppState): AppState {
   }
 }
 
+function temCategoriaRevistasVendidas(state: AppState) {
+  return (state.categoriasFinanceiras ?? []).some(
+    (c) => c.id === 'cat-revistas-vendidas' || c.nome.toLowerCase() === 'revistas vendidas',
+  )
+}
+
 export function catalogoCresceu(antes: AppState, depois: AppState): boolean {
   return (
     depois.licoes.length !== (antes.licoes?.length ?? 0) ||
@@ -278,6 +310,9 @@ export function catalogoCresceu(antes: AppState, depois: AppState): boolean {
     (depois.licoesRemovidas?.length ?? 0) > (antes.licoesRemovidas?.length ?? 0) ||
     (!(antes.setoresEbd?.length) && depois.setoresEbd.length > 0) ||
     (!(antes.categoriasFinanceiras?.length) && depois.categoriasFinanceiras.length > 0) ||
+    (temCategoriaRevistasVendidas(depois) && !temCategoriaRevistasVendidas(antes)) ||
+    (depois.lancamentos ?? []).filter((l) => l.id.startsWith('revpag_')).length >
+      (antes.lancamentos ?? []).filter((l) => l.id.startsWith('revpag_')).length ||
     !antes.modeloCertificado?.texto
   )
 }

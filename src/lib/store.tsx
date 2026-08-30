@@ -19,6 +19,7 @@ import {
 } from './api'
 import { acharVarianteTurma, catalogoDeLicao, chaveAula, deduplicarLicoes, ehLicaoGeral, idCatalogoPadrao } from './acompanhamento'
 import { ehAppNativo, EVENTO_SYNC } from './native'
+import { CAT_REVISTAS_VENDIDAS_ID, garantirCategorias } from './ebdSetores'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
   AppState,
@@ -41,7 +42,7 @@ import type {
   TurmaCadastro,
   Usuario,
 } from './types'
-import { formatDateBR, senhaGerada, uid, usernameFromNome, whatsappSuporte } from './utils'
+import { formatDateBR, senhaGerada, toISODate, uid, usernameFromNome, whatsappSuporte } from './utils'
 
 const STORAGE_KEY = 'portal-ebd-v7'
 
@@ -98,6 +99,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 let savePending = 0
 let saveRetries = 0
 let lastRemoteAt = ''
+let syncGeracao = 0
 let latestToSave: AppState | null = null
 let canalSync: BroadcastChannel | null = null
 try {
@@ -128,6 +130,7 @@ function persist(state: AppState, imediato = false) {
     const payload = latestToSave
     if (!payload) return
     savePending += 1
+    syncGeracao += 1
     void apiSaveState(payload)
       .then((res) => {
         saveRetries = 0
@@ -363,7 +366,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>) {
-      if (remote.updatedAt && remote.updatedAt === lastRemoteAt) return
+      if (saveTimer || savePending) return
+      if (remote.updatedAt && lastRemoteAt && remote.updatedAt <= lastRemoteAt) return
       if (remote.updatedAt) lastRemoteAt = remote.updatedAt
       const raw = {
         ...createEmptyIgrejaState(),
@@ -379,7 +383,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     function puxar() {
       if (!apiToken() || saveTimer || savePending) return
-      void apiGetState().then(aplicarRemoto).catch(() => {})
+      const geracao = syncGeracao
+      void apiGetState()
+        .then((remote) => {
+          if (geracao !== syncGeracao) return
+          aplicarRemoto(remote)
+        })
+        .catch(() => {})
     }
     function aoVisivel() {
       if (document.visibilityState === 'visible') puxar()
@@ -753,23 +763,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const revistas = lista.some((r) => r.id === gravar.id)
         ? lista.map((r) => (r.id === gravar.id ? gravar : r))
         : [...lista, gravar]
+      const lancId = `revpag_${gravar.id}`
+      const pessoa = prev.pessoas.find((p) => p.id === gravar.pessoaId)
+      let lancamentos = prev.lancamentos
+      let lancamentosRemovidos = prev.lancamentosRemovidos
+      if (gravar.pagou && gravar.valor > 0) {
+        const lanc: LancamentoFinanceiro = {
+          id: lancId,
+          escolaId: gravar.escolaId,
+          data: gravar.dataPagamento || toISODate(new Date()),
+          tipo: 'outro',
+          descricao: `Revista ${gravar.trimestre}º/${gravar.ano} — ${pessoa?.nome ?? 'aluno'}`,
+          valor: gravar.valor,
+          turma: gravar.turma,
+          categoriaId: CAT_REVISTAS_VENDIDAS_ID,
+          updatedAt: agoraIso(),
+        }
+        lancamentos = lancamentos.some((l) => l.id === lancId)
+          ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
+          : [...lancamentos, lanc]
+        lancamentosRemovidos = tirarRemovido(lancamentosRemovidos, lancId)
+      } else {
+        const existia = lancamentos.some((l) => l.id === lancId)
+        lancamentos = lancamentos.filter((l) => l.id !== lancId)
+        if (existia) lancamentosRemovidos = marcarRemovidos(lancamentosRemovidos, [lancId])
+      }
       return {
         ...prev,
         revistas,
         revistasRemovidas: tirarRemovido(prev.revistasRemovidas, gravar.id),
+        lancamentos,
+        lancamentosRemovidos,
+        categoriasFinanceiras: garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas),
       }
     }, true)
   }, [commit])
 
   const removeRevista = useCallback((id: string) => {
-    commit(
-      (prev) => ({
+    commit((prev) => {
+      const lancId = `revpag_${id}`
+      const existiaLanc = prev.lancamentos.some((l) => l.id === lancId)
+      return {
         ...prev,
         revistas: (prev.revistas ?? []).filter((r) => r.id !== id),
         revistasRemovidas: marcarRemovidos(prev.revistasRemovidas, [id]),
-      }),
-      true,
-    )
+        lancamentos: prev.lancamentos.filter((l) => l.id !== lancId),
+        lancamentosRemovidos: existiaLanc
+          ? marcarRemovidos(prev.lancamentosRemovidos, [lancId])
+          : prev.lancamentosRemovidos,
+      }
+    }, true)
   }, [commit])
 
   const setWhatsapp = useCallback((numero: string) => {

@@ -9,6 +9,7 @@ import { trimestreDe as trimestreNumero } from '../lib/pedagogia'
 import { useStore } from '../lib/store'
 import { nomeEscola } from '../lib/stats'
 import {
+  NATUREZAS_FINANCEIRAS,
   TIPOS_LANCAMENTO,
   type CategoriaFinanceira,
   type LancamentoFinanceiro,
@@ -404,7 +405,8 @@ function AbaRelatorios() {
   const hoje = toISODate(new Date())
   const [de, setDe] = useState(`${new Date().getFullYear()}-01-01`)
   const [ate, setAte] = useState(hoje)
-  const [tipos, setTipos] = useState<TipoLancamento[]>([])
+  const [naturezas, setNaturezas] = useState<NaturezaFinanceira[]>([])
+  const [todasCats, setTodasCats] = useState(true)
   const [cats, setCats] = useState<string[]>([])
   const [todasEscolas, setTodasEscolas] = useState(true)
   const [escolaIds, setEscolaIds] = useState<string[]>([])
@@ -426,15 +428,18 @@ function AbaRelatorios() {
       .filter((l) => {
         if (!setEscolasFiltro.has(l.escolaId)) return false
         if (l.data < de || l.data > ate) return false
-        if (tipos.length && !tipos.includes(l.tipo)) return false
-        if (cats.length && (!l.categoriaId || !cats.includes(l.categoriaId))) return false
+        if (naturezas.length === 1) {
+          if (naturezas[0] === 'receita' && !ehReceita(l.tipo)) return false
+          if (naturezas[0] === 'despesa' && ehReceita(l.tipo)) return false
+        }
+        if (!todasCats && cats.length && (!l.categoriaId || !cats.includes(l.categoriaId))) return false
         if (setTurmasFiltro) {
           if (!l.turma || !setTurmasFiltro.has(`${l.escolaId}|${l.turma}`)) return false
         }
         return true
       })
       .sort((a, b) => b.data.localeCompare(a.data))
-  }, [state.lancamentos, de, ate, tipos, cats, setEscolasFiltro, setTurmasFiltro])
+  }, [state.lancamentos, de, ate, naturezas, todasCats, cats, setEscolasFiltro, setTurmasFiltro])
 
   const receitas = lista.filter((l) => ehReceita(l.tipo)).reduce((a, l) => a + l.valor, 0)
   const despesas = lista.filter((l) => !ehReceita(l.tipo)).reduce((a, l) => a + l.valor, 0)
@@ -474,8 +479,8 @@ function AbaRelatorios() {
 
   function subtituloFiltro() {
     const esc = todasEscolas || escolaIds.length === 0 ? 'Todas as escolas' : escolasVisiveis.filter((e) => escolaIds.includes(e.id)).map((e) => e.nome).join(', ')
-    const tps = tipos.length ? tipos.map((t) => LABELS[t]).join(', ') : 'Todos os tipos'
-    const cts = cats.length ? cats.map((id) => nomeCat(id)).join(', ') : 'Todas as categorias'
+    const tps = naturezas.length === 1 ? (naturezas[0] === 'receita' ? 'Receitas' : 'Despesas') : 'Receitas e despesas'
+    const cts = todasCats || cats.length === 0 ? 'Todas as categorias' : cats.map((id) => nomeCat(id)).join(', ')
     const trm = setTurmasFiltro ? turmasSel.map((k) => k.split('|')[1]).join(', ') : 'Todas as classes'
     return `${formatDateBR(de)} a ${formatDateBR(ate)} · ${esc} · ${trm} · ${tps} · ${cts}`
   }
@@ -534,31 +539,41 @@ function AbaRelatorios() {
           <Field label="Até">
             <DateInput value={ate} onChange={setAte} />
           </Field>
-          <Field label="Tipos">
-            <div className="flex flex-wrap gap-2 pt-1">
-              {TIPOS_LANCAMENTO.map((t) => (
-                <label key={t} className="flex items-center gap-1 text-sm">
-                  <input type="checkbox" checked={tipos.includes(t)} onChange={() => setTipos(toggleId(tipos, t) as TipoLancamento[])} />
-                  {LABELS[t]}
+          <div>
+            <span className="mb-1 block text-[13px] font-medium text-ink">Tipos</span>
+            <div className="flex flex-wrap gap-3 pt-1">
+              {NATUREZAS_FINANCEIRAS.map((n) => (
+                <label key={n} className="flex items-center gap-1 text-sm">
+                  <input type="checkbox" checked={naturezas.includes(n)} onChange={() => setNaturezas(toggleId(naturezas, n) as NaturezaFinanceira[])} />
+                  {n === 'receita' ? 'Receitas' : 'Despesas'}
                 </label>
               ))}
             </div>
-          </Field>
-          <Field label="Categorias">
-            <select
-              multiple
-              className={inputClass + ' h-24'}
-              value={cats}
-              onChange={(e) => setCats([...e.target.selectedOptions].map((o) => o.value))}
-            >
-              {categorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome} ({c.natureza})
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-muted">Segure Ctrl para várias. Vazio = todas.</p>
-          </Field>
+          </div>
+          <div>
+            <span className="mb-1 block text-[13px] font-medium text-ink">Categorias</span>
+            <label className="mb-2 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={todasCats}
+                onChange={(e) => {
+                  setTodasCats(e.target.checked)
+                  if (e.target.checked) setCats([])
+                }}
+              />
+              Todas
+            </label>
+            {!todasCats ? (
+              <div className="flex max-h-32 flex-col gap-1 overflow-auto rounded-lg border border-line p-2">
+                {categorias.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={cats.includes(c.id)} onChange={() => setCats(toggleId(cats, c.id))} />
+                    {c.nome}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <Field label="Escolas">
@@ -848,7 +863,7 @@ function AbaRevistas() {
     const html = htmlDocumentoPdf(
       `Revistas — ${tri}º trimestre ${ano}`,
       `${tabelaHtml(
-        ['Nome', 'Tipo', 'Escola', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Situação'],
+        ['Nome', 'Tipo', 'Escola', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Data pagamento', 'Situação'],
         linhas.map(({ p, r }) => [
           p.nome,
           p.tipo,
@@ -858,6 +873,7 @@ function AbaRevistas() {
           r.recebeu ? 'Sim' : 'Não',
           r.pagou ? 'Sim' : 'Não',
           moneyBR(r.valor),
+          r.dataPagamento ? formatDateBR(r.dataPagamento) : '—',
           r.pagou ? 'Pago' : inadimplente(r) ? 'Inadimplente' : '—',
         ]),
       )}`,
@@ -941,10 +957,10 @@ function AbaRevistas() {
       </section>
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <div className="table-wrap">
-          <table className="data w-full min-w-[900px] text-left">
+          <table className="data w-full min-w-[1100px] text-left">
             <thead>
               <tr>
-                {['Nome', 'Tipo', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Situação'].map((h) => (
+                {['Nome', 'Tipo', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Data de pagamento', 'Situação'].map((h) => (
                   <th key={h} className="px-3 py-3">
                     {h}
                   </th>
@@ -954,7 +970,7 @@ function AbaRevistas() {
             <tbody>
               {linhas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted">
+                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-muted">
                     Não há nenhum registro
                   </td>
                 </tr>
@@ -965,13 +981,28 @@ function AbaRevistas() {
                     <td className="px-3 py-3">{p.tipo}</td>
                     <td className="px-3 py-3">{p.turma}</td>
                     <td className="px-3 py-3">
-                      <input type="checkbox" checked={r.pediu} onChange={(e) => patch(p, r, { pediu: e.target.checked })} />
+                      <input
+                        type="checkbox"
+                        checked={r.pediu}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => patch(p, r, { pediu: !r.pediu })}
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <input type="checkbox" checked={r.recebeu} onChange={(e) => patch(p, r, { recebeu: e.target.checked })} />
+                      <input
+                        type="checkbox"
+                        checked={r.recebeu}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => patch(p, r, { recebeu: !r.recebeu })}
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <input type="checkbox" checked={r.pagou} onChange={(e) => patch(p, r, { pagou: e.target.checked })} />
+                      <input
+                        type="checkbox"
+                        checked={r.pagou}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => patch(p, r, { pagou: !r.pagou })}
+                      />
                     </td>
                     <td className="px-3 py-3">
                       <input
@@ -981,6 +1012,17 @@ function AbaRevistas() {
                         step="0.01"
                         value={r.valor}
                         onChange={(e) => patch(p, r, { valor: Number(e.target.value) })}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <DateInput
+                        className="w-36"
+                        value={r.dataPagamento ?? ''}
+                        allowEmpty
+                        onChange={(iso) => {
+                          if (iso) patch(p, r, { dataPagamento: iso, pagou: true })
+                          else patch(p, r, { dataPagamento: undefined })
+                        }}
                       />
                     </td>
                     <td className="px-3 py-3">
