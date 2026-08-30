@@ -65,15 +65,44 @@ export function revistaGeraReceita(r: { recebeu: boolean; pagou: boolean; valor:
   return (r.recebeu || r.pagou) && r.valor > 0
 }
 
+export function idCategoria(
+  cats: CategoriaFinanceira[] | undefined,
+  idPadrao: string,
+  nome: string,
+  natureza: CategoriaFinanceira['natureza'] = 'receita',
+): string {
+  const lista = cats ?? []
+  const porId = lista.find((c) => c.id === idPadrao)
+  if (porId) return porId.id
+  const alvo = nome.toLowerCase()
+  const porNome = lista.find((c) => c.natureza === natureza && c.nome.toLowerCase() === alvo)
+  if (porNome) return porNome.id
+  return idPadrao
+}
+
+export function categoriaOuPadrao(
+  atual: string | undefined,
+  cats: CategoriaFinanceira[] | undefined,
+  idPadrao: string,
+  nome: string,
+  natureza: CategoriaFinanceira['natureza'] = 'receita',
+): string {
+  const lista = cats ?? []
+  if (atual && lista.some((c) => c.id === atual)) return atual
+  return idCategoria(lista, idPadrao, nome, natureza)
+}
+
 export function garantirCategorias(atuais: CategoriaFinanceira[] | undefined, removidas: string[] | undefined): CategoriaFinanceira[] {
   const rem = new Set(removidas ?? [])
   const lista = [...(atuais ?? [])]
   const base = lista.length === 0 ? CATEGORIAS_FINANCEIRAS_PADRAO.filter((c) => !rem.has(c.id)) : lista.filter((c) => !rem.has(c.id))
-  if (
-    !rem.has(CAT_REVISTAS_VENDIDAS_ID) &&
-    !base.some((c) => c.id === CAT_REVISTAS_VENDIDAS_ID || c.nome.toLowerCase() === 'revistas vendidas')
-  ) {
-    base.push({ id: CAT_REVISTAS_VENDIDAS_ID, nome: 'Revistas vendidas', natureza: 'receita' })
+  const agora = new Date().toISOString()
+  function garantir(id: string, nome: string, natureza: CategoriaFinanceira['natureza']) {
+    if (rem.has(id)) return
+    if (base.some((c) => c.id === id || (c.natureza === natureza && c.nome.toLowerCase() === nome.toLowerCase()))) return
+    base.push({ id, nome, natureza, updatedAt: agora })
   }
+  garantir(CAT_REVISTAS_VENDIDAS_ID, 'Revistas vendidas', 'receita')
+  garantir(CAT_OFERTA_EBD_ID, 'Oferta da EBD', 'receita')
   return base
 }

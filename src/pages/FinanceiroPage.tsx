@@ -32,6 +32,14 @@ function tipoDaNatureza(natureza: NaturezaFinanceira, atual: TipoLancamento): Ti
   return atual === 'despesa' ? 'outro' : atual
 }
 
+function opcoesCategoria(categorias: CategoriaFinanceira[], tipo: TipoLancamento, atual?: string) {
+  const natureza = ehReceita(tipo) ? 'receita' : 'despesa'
+  const lista = categorias.filter((c) => c.natureza === natureza)
+  const extra = atual ? categorias.find((c) => c.id === atual) : undefined
+  if (extra && !lista.some((c) => c.id === extra.id)) return [extra, ...lista]
+  return lista
+}
+
 type AbaFin = 'lancamentos' | 'categorias' | 'relatorios' | 'revistas'
 
 function toggleId(ids: string[], id: string) {
@@ -257,13 +265,11 @@ function AbaLancamentos() {
                 onChange={(e) => setEditing({ ...editing, categoriaId: e.target.value || undefined })}
               >
                 <option value="">Sem categoria</option>
-                {categorias
-                  .filter((c) => c.natureza === (ehReceita(editing.tipo) ? 'receita' : 'despesa'))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
+                {opcoesCategoria(categorias, editing.tipo, editing.categoriaId).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Descrição">
@@ -753,7 +759,20 @@ function AbaRelatorios() {
                 <option value="despesa">Despesa</option>
               </select>
             </Field>
-            <div className="flex justify-end gap-2">
+            <Field label="Categoria">
+              <select
+                className={inputClass}
+                value={editing.categoriaId ?? ''}
+                onChange={(e) => setEditing({ ...editing, categoriaId: e.target.value || undefined })}
+              >
+                <option value="">Sem categoria</option>
+                {opcoesCategoria(categorias, editing.tipo, editing.categoriaId).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
+            </Field>
               <GhostButton type="button" onClick={() => setEditing(null)}>
                 Cancelar
               </GhostButton>

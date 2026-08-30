@@ -1,6 +1,6 @@
 import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
-import { CAT_OFERTA_EBD_ID, CAT_REVISTAS_VENDIDAS_ID, garantirCategorias, garantirSetoresEbd, idLancRevista, revistaGeraReceita } from './ebdSetores'
+import { CAT_OFERTA_EBD_ID, CAT_REVISTAS_VENDIDAS_ID, garantirCategorias, garantirSetoresEbd, idCategoria, idLancRevista, revistaGeraReceita } from './ebdSetores'
 import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, LancamentoFinanceiro, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
 
@@ -242,18 +242,19 @@ export function hidratarEstado(state: AppState): AppState {
 }
 
 function garantirLancamentosAutomaticos(state: AppState): AppState {
+  const cats = state.categoriasFinanceiras ?? []
+  const catRev = idCategoria(cats, CAT_REVISTAS_VENDIDAS_ID, 'Revistas vendidas')
+  const catOferta = idCategoria(cats, CAT_OFERTA_EBD_ID, 'Oferta da EBD')
   const pessoas = state.pessoas
   let lancamentos = [...state.lancamentos]
   let removidos = [...(state.lancamentosRemovidos ?? [])]
   const ids = new Set(lancamentos.map((l) => l.id))
+  const catExiste = (id?: string) => !!(id && cats.some((c) => c.id === id))
 
   lancamentos = lancamentos.map((l) => {
-    if (l.id.startsWith('revpag_') && l.categoriaId !== CAT_REVISTAS_VENDIDAS_ID) {
-      return { ...l, categoriaId: CAT_REVISTAS_VENDIDAS_ID }
-    }
-    if (l.id.startsWith('oferta_') || (l.tipo === 'oferta' && !l.categoriaId)) {
-      return l.categoriaId === CAT_OFERTA_EBD_ID ? l : { ...l, categoriaId: CAT_OFERTA_EBD_ID }
-    }
+    if (catExiste(l.categoriaId)) return l
+    if (l.id.startsWith('revpag_')) return { ...l, categoriaId: catRev }
+    if (l.id.startsWith('oferta_') || l.tipo === 'oferta') return { ...l, categoriaId: catOferta }
     return l
   })
 
@@ -261,8 +262,9 @@ function garantirLancamentosAutomaticos(state: AppState): AppState {
     if (!revistaGeraReceita(r)) continue
     const lancId = idLancRevista(r.id)
     removidos = removidos.filter((id) => id !== lancId)
+    if (ids.has(lancId)) continue
     const pessoa = pessoas.find((p) => p.id === r.pessoaId)
-    const lanc: LancamentoFinanceiro = {
+    lancamentos.push({
       id: lancId,
       escolaId: r.escolaId,
       data: r.dataPagamento || toISODate(new Date()),
@@ -270,14 +272,9 @@ function garantirLancamentosAutomaticos(state: AppState): AppState {
       descricao: `Revista ${r.trimestre}º/${r.ano} — ${pessoa?.nome ?? 'aluno'}`,
       valor: r.valor,
       turma: r.turma,
-      categoriaId: CAT_REVISTAS_VENDIDAS_ID,
-    }
-    if (ids.has(lancId)) {
-      lancamentos = lancamentos.map((l) => (l.id === lancId ? { ...l, ...lanc, updatedAt: l.updatedAt } : l))
-    } else {
-      lancamentos.push(lanc)
-      ids.add(lancId)
-    }
+      categoriaId: catRev,
+    })
+    ids.add(lancId)
   }
 
   return {

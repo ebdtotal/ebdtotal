@@ -22,6 +22,7 @@ import { ehAppNativo, EVENTO_SYNC } from './native'
 import {
   CAT_OFERTA_EBD_ID,
   CAT_REVISTAS_VENDIDAS_ID,
+  categoriaOuPadrao,
   garantirCategorias,
   idLancOfertaClasse,
   idLancRevista,
@@ -660,17 +661,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       let lancamentos = prev.lancamentos
       let lancamentosRemovidos = prev.lancamentosRemovidos
       if (valor > 0) {
+        const existenteLanc = lancamentos.find((l) => l.id === lancId)
+        const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
         const lanc: LancamentoFinanceiro = {
           id: lancId,
           escolaId: payload.escolaId,
           data: payload.data,
           tipo: 'oferta',
-          descricao: turma
+          descricao: existenteLanc?.descricao || (turma
             ? `Oferta EBD ${turma} · ${formatDateBR(payload.data)}`
-            : `Oferta EBD ${formatDateBR(payload.data)}`,
+            : `Oferta EBD ${formatDateBR(payload.data)}`),
           valor,
-          turma: turma || undefined,
-          categoriaId: CAT_OFERTA_EBD_ID,
+          turma: turma || existenteLanc?.turma || undefined,
+          categoriaId: categoriaOuPadrao(existenteLanc?.categoriaId, cats, CAT_OFERTA_EBD_ID, 'Oferta da EBD'),
           updatedAt: agora,
         }
         lancamentos = lancamentos.some((l) => l.id === lancId)
@@ -694,6 +697,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const saveLancamento = useCallback((lancamento: LancamentoFinanceiro) => {
     commit((prev) => {
+      const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
       const gravar = { ...lancamento, updatedAt: agoraIso() }
       const exists = prev.lancamentos.some((l) => l.id === gravar.id)
       const lancamentos = exists
@@ -703,6 +707,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...prev,
         lancamentos,
         lancamentosRemovidos: tirarRemovido(prev.lancamentosRemovidos, gravar.id),
+        categoriasFinanceiras: cats,
       }
     }, true)
   }, [commit])
@@ -783,21 +788,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       let lancamentos = prev.lancamentos
       let lancamentosRemovidos = prev.lancamentosRemovidos
       if (revistaGeraReceita(gravar)) {
+        const existenteLanc = lancamentos.find((l) => l.id === lancId)
+        const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
         const lanc: LancamentoFinanceiro = {
           id: lancId,
           escolaId: gravar.escolaId,
-          data: gravar.dataPagamento || toISODate(new Date()),
-          tipo: 'outro',
-          descricao: `Revista ${gravar.trimestre}º/${gravar.ano} — ${pessoa?.nome ?? 'aluno'}`,
+          data: gravar.dataPagamento || existenteLanc?.data || toISODate(new Date()),
+          tipo: existenteLanc?.tipo && existenteLanc.tipo !== 'despesa' ? existenteLanc.tipo : 'outro',
+          descricao: existenteLanc?.descricao || `Revista ${gravar.trimestre}º/${gravar.ano} — ${pessoa?.nome ?? 'aluno'}`,
           valor: gravar.valor,
           turma: gravar.turma,
-          categoriaId: CAT_REVISTAS_VENDIDAS_ID,
+          categoriaId: categoriaOuPadrao(existenteLanc?.categoriaId, cats, CAT_REVISTAS_VENDIDAS_ID, 'Revistas vendidas'),
           updatedAt: agoraIso(),
         }
         lancamentos = lancamentos.some((l) => l.id === lancId)
           ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
           : [...lancamentos, lanc]
         lancamentosRemovidos = tirarRemovido(lancamentosRemovidos, lancId)
+        return {
+          ...prev,
+          revistas,
+          revistasRemovidas: tirarRemovido(prev.revistasRemovidas, gravar.id),
+          lancamentos,
+          lancamentosRemovidos,
+          categoriasFinanceiras: cats,
+        }
       } else {
         const existia = lancamentos.some((l) => l.id === lancId)
         lancamentos = lancamentos.filter((l) => l.id !== lancId)
