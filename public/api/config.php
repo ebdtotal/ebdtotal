@@ -15,7 +15,21 @@ return [
   ],
   'mail' => [
     'from_name' => getenv('EBD_MAIL_FROM_NAME') ?: 'EDB Total',
-    'from' => getenv('EBD_MAIL_FROM') ?: 'nao-responda@ebdtotal.com',
-    'reply' => getenv('EBD_MAIL_REPLY') ?: 'nao-responda@ebdtotal.com',
+    'from' => getenv('EBD_MAIL_FROM') ?: 'naoresponda@ebdtotal.com',
+    'reply' => getenv('EBD_MAIL_REPLY') ?: 'naoresponda@ebdtotal.com',
+  ],
+  'pagamento' => [
+    'preco_avista' => (float)(getenv('EBD_PRECO_AVISTA') ?: 1299),
+    'preco_parcelado' => (float)(getenv('EBD_PRECO_PARCELADO') ?: 1499),
+    'site_url' => rtrim((string)(getenv('EBD_SITE_URL') ?: 'https://ebdtotal.com'), '/'),
+    /* Access Token do Mercado Pago (Checkout Pro). Prefira o arquivo api/data/pagamento.local.php
+       (não entra no zip) para não perder o token ao publicar. Sem token, o cadastro fica pendente
+       para o master confirmar. */
+    'mp_access_token' => getenv('EBD_MP_ACCESS_TOKEN') ?: '',
+    /* Opcional: link avulso (PIX/boleto) se ainda não houver Mercado Pago. */
+    'link_pagamento' => getenv('EBD_PAGAMENTO_LINK') ?: '',
+  ],
+  'limites' => [
+    'pessoas' => (int)(getenv('EBD_LIMITE_PESSOAS') ?: 600),
   ],
 ];

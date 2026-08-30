@@ -127,7 +127,40 @@ export async function apiAssinar(payload: {
     igreja: { id: string; nome: string; status: string }
     login: { username: string; senha: string; nome: string; email: string }
     emailEnviado: boolean
-  }>('clientes.php', { method: 'POST', body: JSON.stringify(payload) })
+  }>('clientes.php', { method: 'POST', body: JSON.stringify({ ...payload, origem: 'master' }) })
+}
+
+export async function apiIniciarAssinatura(payload: {
+  nome: string
+  cidade: string
+  responsavel: string
+  email: string
+  telefone: string
+  plano: 'avista' | 'parcelado'
+}) {
+  return req<{ checkoutUrl: string; signupId: string; preco: number; plano: string; email: string; igreja: string }>(
+    'clientes.php',
+    { method: 'POST', body: JSON.stringify({ ...payload, origem: 'site' }) },
+  )
+}
+
+export async function apiStatusAssinatura(sid: string, paymentId?: string) {
+  const sp = new URLSearchParams({ sid })
+  if (paymentId) sp.set('payment_id', paymentId)
+  return req<{ signupId: string; igreja: string; email: string; status: string; pagoEm: string }>(`pagamento.php?${sp}`)
+}
+
+export type AssinaturaPendente = {
+  id: string
+  nome: string
+  cidade: string
+  responsavel: string
+  email: string
+  telefone: string
+  status: string
+  username: string
+  created_at: string
+  pago_em: string
 }
 
 export async function apiEsqueciSenha(usuario: string) {
@@ -145,11 +178,18 @@ export async function apiAlterarSenha(senhaAtual: string, senhaNova: string) {
 }
 
 export async function apiClientes() {
-  return req<{ igrejas: IgrejaCliente[]; cadastros: CadastroGeral[] }>('clientes.php')
+  return req<{ igrejas: IgrejaCliente[]; cadastros: CadastroGeral[]; assinaturas: AssinaturaPendente[] }>('clientes.php')
 }
 
 export async function apiStatusIgreja(id: string, status: string) {
   return req<{ ok: boolean }>('clientes.php', { method: 'PATCH', body: JSON.stringify({ id, status }) })
+}
+
+export async function apiConfirmarSignup(id: string) {
+  return req<{ ok: boolean; login?: { username: string; senha: string; email: string }; emailEnviado?: boolean }>(
+    'clientes.php',
+    { method: 'PATCH', body: JSON.stringify({ acao: 'confirmar_signup', id }) },
+  )
 }
 
 export type AtividadeRegistro = {

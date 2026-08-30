@@ -17,6 +17,7 @@ import {
 import { Logo } from '../components/Logo'
 import { TemaToggle } from '../components/TemaToggle'
 import { apiStats, type StatsPublicos, WHATSAPP_SUPORTE_LINK } from '../lib/landing'
+import { formatarBRL, LIMITE_PESSOAS_IGREJA, PLANOS, valorParcela } from '../lib/planos'
 import { WHATSAPP_SUPORTE, whatsappUrl } from '../lib/utils'
 
 const FEATURES = [
@@ -182,32 +183,55 @@ export function LandingPage() {
 
       <section id="planos" className="bg-white py-16">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center text-2xl font-semibold text-navy">Assinatura para igrejas</h2>
-          <p className="mt-2 text-center text-sm text-muted">Comece em minutos. Login e senha são gerados na hora.</p>
-          <div className="mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-2">
+          <h2 className="text-center text-2xl font-semibold text-navy">Assinatura anual para igrejas</h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            Cadastre a igreja, pague e receba o login no e-mail. Até {LIMITE_PESSOAS_IGREJA} cadastros de pessoas por igreja.
+          </p>
+          <div className="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-line p-6">
-              <p className="text-sm font-semibold text-muted">Igreja</p>
-              <p className="mt-2 text-3xl font-semibold text-navy">R$ 79<span className="text-base font-medium text-muted">/mês</span></p>
+              <p className="text-sm font-semibold text-muted">{PLANOS.parcelado.nome}</p>
+              <p className="mt-2 text-3xl font-semibold text-navy">
+                {formatarBRL(PLANOS.parcelado.preco)}
+                <span className="text-base font-medium text-muted">/ano</span>
+              </p>
+              <p className="mt-1 text-sm text-muted">Até 12x de {formatarBRL(valorParcela('parcelado'))}</p>
               <ul className="mt-4 space-y-2 text-sm text-muted">
                 <li>1 igreja, congregações ilimitadas</li>
+                <li>Até {LIMITE_PESSOAS_IGREJA} cadastros de pessoas</li>
                 <li>Chamada, cadastros e relatório</li>
                 <li>Portal do aluno e do professor</li>
-                <li>Suporte no WhatsApp</li>
               </ul>
-              <Link to="/assine" className="mt-6 block rounded-xl bg-navy py-3 text-center text-sm font-semibold text-white">
-                Assinar
+              <Link to="/assine?plano=parcelado" className="mt-6 block rounded-xl border border-navy py-3 text-center text-sm font-semibold text-navy">
+                Parcelar no cartão
               </Link>
             </div>
             <div className="rounded-2xl bg-navy p-6 text-white">
-              <p className="text-sm font-semibold text-gold">Rede / convenção</p>
-              <p className="mt-2 text-3xl font-semibold">Sob consulta</p>
+              <p className="text-sm font-semibold text-gold">Mais vantajoso</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {formatarBRL(PLANOS.avista.preco)}
+                <span className="text-base font-medium text-white/70">/ano</span>
+              </p>
+              <p className="mt-1 text-sm text-white/75">Pagamento único (PIX, cartão ou boleto)</p>
               <ul className="mt-4 space-y-2 text-sm text-white/75">
+                <li>1 igreja, congregações ilimitadas</li>
+                <li>Até {LIMITE_PESSOAS_IGREJA} cadastros de pessoas</li>
+                <li>Chamada, cadastros e relatório</li>
+                <li>Portal do aluno e do professor</li>
+              </ul>
+              <Link to="/assine?plano=avista" className="mt-6 block rounded-xl bg-gold py-3 text-center text-sm font-semibold text-navy">
+                Pagar à vista
+              </Link>
+            </div>
+            <div className="rounded-2xl border border-line p-6">
+              <p className="text-sm font-semibold text-gold">Rede / convenção</p>
+              <p className="mt-2 text-3xl font-semibold text-navy">Sob consulta</p>
+              <ul className="mt-4 space-y-2 text-sm text-muted">
                 <li>Várias igrejas na mesma conta master</li>
                 <li>Painel consolidado da rede</li>
                 <li>Contabilização geral no site</li>
                 <li>Onboarding assistido</li>
               </ul>
-              <a href={wa} target="_blank" rel="noreferrer" className="mt-6 block rounded-xl bg-gold py-3 text-center text-sm font-semibold text-navy">
+              <a href={wa} target="_blank" rel="noreferrer" className="mt-6 block rounded-xl bg-navy py-3 text-center text-sm font-semibold text-white">
                 Falar com o master
               </a>
             </div>
@@ -221,7 +245,8 @@ export function LandingPage() {
           <div>
             <h3 className="font-semibold text-navy">Dados de cada igreja ficam separados</h3>
             <p className="mt-1 text-sm text-muted">
-              Banco próprio no servidor, senhas com hash e acesso por login. O master vê a contabilização geral; a igreja vê só a sua EBD.
+              Cada igreja tem o próprio espaço: chamada, cadastros e financeiro não se misturam. O master vê o consolidado; a
+              igreja vê só a sua EBD. Login de igreja suspensa é bloqueado.
             </p>
           </div>
         </div>

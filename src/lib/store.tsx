@@ -18,6 +18,7 @@ import {
   setApiToken,
 } from './api'
 import { acharVarianteTurma, catalogoDeLicao, chaveAula, deduplicarLicoes, ehLicaoGeral, idCatalogoPadrao } from './acompanhamento'
+import { LIMITE_PESSOAS_IGREJA } from './planos'
 import { ehAppNativo, EVENTO_SYNC } from './native'
 import {
   CAT_OFERTA_EBD_ID,
@@ -312,7 +313,7 @@ type StoreValue = {
   login: (username: string, senha: string) => Promise<string | null>
   logout: () => void
   alterarSenha: (atual: string, nova: string) => Promise<string | null>
-  savePessoa: (pessoa: Pessoa, acesso?: AcessoApp | null) => void
+  savePessoa: (pessoa: Pessoa, acesso?: AcessoApp | null) => string | null
   importarPessoas: (itens: { pessoa: Pessoa; acesso?: AcessoApp | null }[]) => void
   removePessoa: (id: string) => void
   saveEscola: (escola: Escola) => void
@@ -528,12 +529,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit, usuario])
 
   const savePessoa = useCallback((pessoa: Pessoa, acesso?: AcessoApp | null) => {
-    commit((prev) => aplicarPessoaNoEstado(prev, pessoa, acesso), true)
+    let erro: string | null = null
+    commit((prev) => {
+      const existe = prev.pessoas.some((p) => p.id === pessoa.id)
+      if (!existe && prev.pessoas.length >= LIMITE_PESSOAS_IGREJA) {
+        erro = `Limite de ${LIMITE_PESSOAS_IGREJA} cadastros de pessoas por igreja.`
+        return prev
+      }
+      return aplicarPessoaNoEstado(prev, pessoa, acesso)
+    }, true)
+    return erro
   }, [commit])
 
   const importarPessoas = useCallback((itens: { pessoa: Pessoa; acesso?: AcessoApp | null }[]) => {
     if (!itens.length) return
-    commit((prev) => itens.reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev), true)
+    commit((prev) => {
+      const vagas = Math.max(0, LIMITE_PESSOAS_IGREJA - prev.pessoas.length)
+      const ids = new Set(prev.pessoas.map((p) => p.id))
+      const novos = itens.filter((item) => !ids.has(item.pessoa.id)).slice(0, vagas)
+      const edits = itens.filter((item) => ids.has(item.pessoa.id))
+      return [...edits, ...novos].reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev)
+    }, true)
   }, [commit])
 
   const removePessoa = useCallback((id: string) => {

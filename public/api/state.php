@@ -56,6 +56,13 @@ $old = stamp_missing_updated_at($old, is_array($oldRow) ? (string)($oldRow['upda
 $antesDiff = $old;
 $state = merge_state($old, $state);
 
+$limite = limite_pessoas_igreja();
+$nPessoas = 0;
+foreach (($state['pessoas'] ?? []) as $p) {
+  if (is_array($p) && !empty($p['id'])) $nPessoas++;
+}
+if ($nPessoas > $limite) json_err('Limite de ' . $limite . ' cadastros de pessoas por igreja.', 403);
+
 $state['sessaoId'] = $sess['user_id'];
 $state = reconciliar_acessos($state);
 $state = aplicar_tombstones($state);

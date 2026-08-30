@@ -169,6 +169,22 @@ function migrate(PDO $pdo): void {
   } catch (Throwable $e) {
     /* índice já existe */
   }
+  $pdo->exec("CREATE TABLE IF NOT EXISTS signups (
+    id TEXT PRIMARY KEY,
+    nome TEXT NOT NULL,
+    cidade TEXT DEFAULT '',
+    responsavel TEXT NOT NULL,
+    email TEXT NOT NULL,
+    telefone TEXT DEFAULT '',
+    status TEXT DEFAULT 'pendente',
+    mp_preference_id TEXT DEFAULT '',
+    mp_payment_id TEXT DEFAULT '',
+    tenant_id TEXT DEFAULT '',
+    username TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    pago_em TEXT DEFAULT ''
+  )");
+  ensure_column($pdo, 'signups', 'plano', "plano TEXT DEFAULT 'avista'");
   ensure_column($pdo, 'users', 'email', 'email TEXT DEFAULT \'\'');
   ensure_column($pdo, 'pessoas_idx', 'email', 'email TEXT DEFAULT \'\'');
 
@@ -269,11 +285,17 @@ function auth(): array {
   $token = bearer();
   if (!$token) json_err('Sessão expirada. Entre novamente.', 401);
   $pdo = db();
-  $st = $pdo->prepare('SELECT s.token, s.user_id, s.tenant_id, s.expires_at, u.nome, u.username, u.papel, u.escola_id, u.pessoa_id, u.turma
-    FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?');
+  $st = $pdo->prepare('SELECT s.token, s.user_id, s.tenant_id, s.expires_at, u.nome, u.username, u.papel, u.escola_id, u.pessoa_id, u.turma, t.status AS tenant_status
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    LEFT JOIN tenants t ON t.id = s.tenant_id
+    WHERE s.token = ?');
   $st->execute([$token]);
   $row = $st->fetch();
   if (!$row || (int)$row['expires_at'] < time()) json_err('Sessão expirada. Entre novamente.', 401);
+  if (($row['papel'] ?? '') !== 'admin' && (string)($row['tenant_status'] ?? '') === 'suspensa') {
+    json_err('Acesso suspenso. Fale com o suporte da EDB Total.', 403);
+  }
   return $row;
 }
 
@@ -450,14 +472,23 @@ function email_valido(string $email): bool {
 
 function cfg(): array {
   static $cfg = null;
-  if ($cfg === null) $cfg = require __DIR__ . '/config.php';
+  if ($cfg === null) {
+    $cfg = require __DIR__ . '/config.php';
+    $local = __DIR__ . '/data/pagamento.local.php';
+    if (is_file($local)) {
+      $extra = require $local;
+      if (is_array($extra)) {
+        $cfg['pagamento'] = array_merge($cfg['pagamento'] ?? [], $extra);
+      }
+    }
+  }
   return $cfg;
 }
 
 function enviar_email(string $para, string $assunto, string $texto): bool {
   if (!email_valido($para)) return false;
   $mail = cfg()['mail'] ?? [];
-  $from = (string)($mail['from'] ?? 'nao-responda@ebdtotal.com');
+  $from = (string)($mail['from'] ?? 'naoresponda@ebdtotal.com');
   $fromName = (string)($mail['from_name'] ?? 'EDB Total');
   $reply = (string)($mail['reply'] ?? $from);
   $encoded = '=?UTF-8?B?' . base64_encode($assunto) . '?=';
@@ -477,7 +508,8 @@ function email_acesso(string $nome, string $igreja, string $username, string $se
     . "Site: https://ebdtotal.com/login\n"
     . "Usuário: {$username}\n"
     . "Senha: {$senha}\n\n"
-    . "Guarde estes dados. Depois de entrar, você pode alterar a senha em Minha conta.\n\n"
+    . "Guarde estes dados. Depois de entrar, você pode alterar a senha em Minha conta.\n"
+    . "Esta mensagem é automática (naoresponda@ebdtotal.com). Não responda este e-mail.\n\n"
     . "EDB Total\n";
 }
 
@@ -539,6 +571,390 @@ function senha_forte(): string {
   $out = '';
   for ($i = 0; $i < 10; $i++) $out .= $chars[random_int(0, strlen($chars) - 1)];
   return $out;
+}
+
+function site_url(): string {
+  $cfg = rtrim((string)(cfg()['pagamento']['site_url'] ?? ''), '/');
+  if ($cfg !== '') return $cfg;
+  $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  $host = (string)($_SERVER['HTTP_HOST'] ?? 'ebdtotal.com');
+  return ($https ? 'https' : 'http') . '://' . $host;
+}
+
+function limite_pessoas_igreja(): int {
+  $n = (int)(cfg()['limites']['pessoas'] ?? 600);
+  return $n > 0 ? $n : 600;
+}
+
+function plano_assinatura(string $plano): array {
+  $p = cfg()['pagamento'] ?? [];
+  $avista = (float)($p['preco_avista'] ?? $p['preco'] ?? 1299);
+  $parcelado = (float)($p['preco_parcelado'] ?? 1499);
+  if ($avista <= 0) $avista = 1299;
+  if ($parcelado <= 0) $parcelado = 1499;
+  if ($plano === 'parcelado') {
+    return [
+      'id' => 'parcelado',
+      'preco' => $parcelado,
+      'parcelas' => 12,
+      'titulo' => 'EDB Total — plano anual (até 12x)',
+    ];
+  }
+  return [
+    'id' => 'avista',
+    'preco' => $avista,
+    'parcelas' => 1,
+    'titulo' => 'EDB Total — plano anual à vista',
+  ];
+}
+
+function preco_assinatura(string $plano = 'avista'): float {
+  return (float)plano_assinatura($plano)['preco'];
+}
+
+function http_json(string $method, string $url, array $headers, ?string $payload): array {
+  $raw = '';
+  $code = 0;
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    $opts = [
+      CURLOPT_CUSTOMREQUEST => strtoupper($method),
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 25,
+      CURLOPT_HTTPHEADER => $headers,
+      CURLOPT_SSL_VERIFYPEER => true,
+    ];
+    if ($payload !== null) $opts[CURLOPT_POSTFIELDS] = $payload;
+    curl_setopt_array($ch, $opts);
+    $raw = (string)curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+  } else {
+    $ctx = stream_context_create(['http' => [
+      'method' => strtoupper($method),
+      'header' => implode("\r\n", $headers),
+      'content' => $payload ?? '',
+      'timeout' => 25,
+      'ignore_errors' => true,
+    ]]);
+    $raw = (string)@file_get_contents($url, false, $ctx);
+    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+      $code = (int)$m[1];
+    }
+  }
+  $data = json_decode($raw, true);
+  if (!is_array($data)) $data = [];
+  return ['ok' => $code >= 200 && $code < 300, 'code' => $code, 'data' => $data];
+}
+
+function mp_api(string $method, string $path, ?array $body = null): array {
+  $token = trim((string)(cfg()['pagamento']['mp_access_token'] ?? ''));
+  if ($token === '') return ['ok' => false, 'code' => 0, 'data' => ['message' => 'Mercado Pago não configurado.']];
+  $payload = $body !== null ? json_encode($body, JSON_UNESCAPED_UNICODE) : null;
+  $headers = [
+    'Authorization: Bearer ' . $token,
+    'Content-Type: application/json',
+    'Accept: application/json',
+  ];
+  return http_json($method, 'https://api.mercadopago.com' . $path, $headers, $payload);
+}
+
+function mp_criar_preferencia(string $sid, string $igreja, string $responsavel, string $email, array $plano, string $base): array {
+  $parcelas = max(1, (int)($plano['parcelas'] ?? 1));
+  $res = mp_api('POST', '/checkout/preferences', [
+    'items' => [[
+      'id' => 'ebd-' . (string)($plano['id'] ?? 'avista'),
+      'title' => (string)($plano['titulo'] ?? 'EDB Total — plano anual'),
+      'description' => 'Acesso da igreja ' . $igreja . ' (até 600 cadastros)',
+      'quantity' => 1,
+      'currency_id' => 'BRL',
+      'unit_price' => round((float)$plano['preco'], 2),
+    ]],
+    'payer' => [
+      'name' => $responsavel,
+      'email' => $email,
+    ],
+    'back_urls' => [
+      'success' => $base . '/assine/sucesso',
+      'failure' => $base . '/assine/falha',
+      'pending' => $base . '/assine/pendente',
+    ],
+    'auto_return' => 'approved',
+    'external_reference' => $sid,
+    'notification_url' => $base . '/api/pagamento.php',
+    'statement_descriptor' => 'EDBTOTAL',
+    'metadata' => [
+      'signup_id' => $sid,
+      'plano' => (string)($plano['id'] ?? 'avista'),
+    ],
+    'payment_methods' => [
+      'installments' => $parcelas,
+      'default_installments' => $parcelas,
+    ],
+  ]);
+  if (!$res['ok']) {
+    $msg = (string)($res['data']['message'] ?? $res['data']['error'] ?? 'Não foi possível abrir o pagamento.');
+    json_err($msg, 502);
+  }
+  return $res['data'];
+}
+
+function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
+  $nome = trim((string)($in['nome'] ?? ''));
+  $responsavel = trim((string)($in['responsavel'] ?? ''));
+  if ($nome === '' || $responsavel === '') json_err('Informe o nome da igreja e o responsável.');
+  if (!in_array($status, ['trial', 'ativa'], true)) $status = 'trial';
+
+  $base = slug_user($nome);
+  $username = $base;
+  $n = 1;
+  $chk = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+  while (true) {
+    $chk->execute([$username]);
+    if (!$chk->fetch()) break;
+    $n++;
+    $username = $base . $n;
+  }
+  $senha = senha_forte();
+  $tid = uid('igreja');
+  $uid = uid('u');
+  $now = gmdate('c');
+  $cidade = trim((string)($in['cidade'] ?? ''));
+  $email = strtolower(trim((string)($in['email'] ?? '')));
+  $telefone = trim((string)($in['telefone'] ?? ''));
+  if (!email_valido($email)) json_err('Informe um e-mail válido. Enviaremos o login e a senha para ele.');
+
+  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    ->execute([$tid, $nome, $cidade, $responsavel, $email, $telefone, $status, $username, $now]);
+  $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,email) VALUES (?,?,?,?,?,?,?)')
+    ->execute([$uid, $tid, $responsavel, $username, password_hash($senha, PASSWORD_DEFAULT), 'sede', $email]);
+
+  $seed = [
+    'escolas' => [[
+      'id' => 'sede',
+      'nome' => $nome,
+      'setor' => 'Sede',
+      'bairro' => $cidade,
+      'regional' => '',
+      'responsavel' => $responsavel,
+      'username' => $username,
+      'status' => 'Ativa',
+      'ativos' => 0,
+      'inativos' => 0,
+    ]],
+    'pessoas' => [],
+    'turmas' => [],
+    'usuarios' => [[
+      'id' => $uid,
+      'nome' => $responsavel,
+      'username' => $username,
+      'senha' => $senha,
+      'papel' => 'sede',
+      'email' => $email,
+    ]],
+    'setores' => [],
+    'relatorios' => [],
+    'lancamentos' => [],
+    'categoriasFinanceiras' => [],
+    'setoresEbd' => [],
+    'revistas' => [],
+    'licoes' => [],
+    'eventos' => [],
+    'avaliacoes' => [],
+    'metas' => [],
+    'avisos' => [],
+    'desafios' => [],
+    'certificados' => [],
+    'licoesRemovidas' => [],
+    'avaliacoesRemovidas' => [],
+    'certificadosRemovidos' => [],
+    'pessoasRemovidas' => [],
+    'escolasRemovidas' => [],
+    'turmasRemovidas' => [],
+    'usuariosRemovidos' => [],
+    'lancamentosRemovidos' => [],
+    'avisosRemovidos' => [],
+    'eventosRemovidos' => [],
+    'setoresRemovidos' => [],
+    'cursosRemovidos' => [],
+    'categoriasRemovidas' => [],
+    'setoresEbdRemovidos' => [],
+    'revistasRemovidas' => [],
+    'cursos' => [],
+    'progressos' => [],
+    'rankingCompetitivo' => false,
+    'whatsapp' => '',
+    'sessaoId' => null,
+  ];
+  $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
+    ->execute([$tid, json_encode($seed, JSON_UNESCAPED_UNICODE), $now]);
+  sync_cadastros($pdo, $tid, $seed);
+  registrar_atividade($pdo, $tid, ['id' => $uid, 'username' => $username, 'nome' => $responsavel, 'papel' => 'sede'], 'criou igreja', $nome);
+
+  $emailEnviado = enviar_email(
+    $email,
+    'Seu acesso ao EDB Total',
+    email_acesso($responsavel, $nome, $username, $senha),
+  );
+
+  return [
+    'igreja' => [
+      'id' => $tid,
+      'nome' => $nome,
+      'status' => $status,
+    ],
+    'login' => [
+      'username' => $username,
+      'senha' => $senha,
+      'nome' => $responsavel,
+      'email' => $email,
+    ],
+    'emailEnviado' => $emailEnviado,
+  ];
+}
+
+function iniciar_assinatura(PDO $pdo, array $in): array {
+  $nome = trim((string)($in['nome'] ?? ''));
+  $responsavel = trim((string)($in['responsavel'] ?? ''));
+  $email = strtolower(trim((string)($in['email'] ?? '')));
+  $cidade = trim((string)($in['cidade'] ?? ''));
+  $telefone = trim((string)($in['telefone'] ?? ''));
+  $planoId = ((string)($in['plano'] ?? '')) === 'parcelado' ? 'parcelado' : 'avista';
+  $plano = plano_assinatura($planoId);
+  if ($nome === '' || $responsavel === '') json_err('Informe o nome da igreja e o responsável.');
+  if (!email_valido($email)) json_err('Informe um e-mail válido. Enviaremos o login e a senha para ele após o pagamento.');
+
+  $st = $pdo->prepare("SELECT * FROM signups WHERE email = ? AND status = 'pendente' ORDER BY created_at DESC LIMIT 1");
+  $st->execute([$email]);
+  $exist = $st->fetch();
+  $sid = $exist ? (string)$exist['id'] : uid('ass');
+  $now = gmdate('c');
+  if ($exist) {
+    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=? WHERE id=?')
+      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $sid]);
+  } else {
+    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now]);
+  }
+
+  $token = trim((string)(cfg()['pagamento']['mp_access_token'] ?? ''));
+  $link = trim((string)(cfg()['pagamento']['link_pagamento'] ?? ''));
+  $preco = (float)$plano['preco'];
+  $base = site_url();
+
+  if ($token !== '') {
+    $pref = mp_criar_preferencia($sid, $nome, $responsavel, $email, $plano, $base);
+    $sandbox = strncmp($token, 'TEST-', 5) === 0;
+    $url = $sandbox
+      ? (string)($pref['sandbox_init_point'] ?? $pref['init_point'] ?? '')
+      : (string)($pref['init_point'] ?? $pref['sandbox_init_point'] ?? '');
+    if ($url === '') json_err('Não foi possível abrir o checkout. Tente novamente.');
+    $pdo->prepare('UPDATE signups SET mp_preference_id = ? WHERE id = ?')->execute([(string)($pref['id'] ?? ''), $sid]);
+    return ['checkoutUrl' => $url, 'signupId' => $sid, 'preco' => $preco, 'plano' => $planoId, 'email' => $email, 'igreja' => $nome];
+  }
+
+  if ($link !== '') {
+    $sep = strpos($link, '?') === false ? '?' : '&';
+    return [
+      'checkoutUrl' => $link . $sep . 'sid=' . rawurlencode($sid) . '&plano=' . rawurlencode($planoId),
+      'signupId' => $sid,
+      'preco' => $preco,
+      'plano' => $planoId,
+      'email' => $email,
+      'igreja' => $nome,
+    ];
+  }
+
+  json_err('O pagamento online ainda está sendo configurado. Fale no WhatsApp (98) 98125-8852 — seu cadastro já foi recebido.', 503);
+}
+
+function status_signup_publico(PDO $pdo, string $sid): array {
+  $st = $pdo->prepare('SELECT id,nome,email,status,pago_em FROM signups WHERE id = ?');
+  $st->execute([$sid]);
+  $row = $st->fetch();
+  if (!$row) json_err('Assinatura não encontrada.', 404);
+  return [
+    'signupId' => $row['id'],
+    'igreja' => $row['nome'],
+    'email' => $row['email'],
+    'status' => $row['status'],
+    'pagoEm' => $row['pago_em'],
+  ];
+}
+
+function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): array {
+  $st = $pdo->prepare('SELECT * FROM signups WHERE id = ?');
+  $st->execute([$signupId]);
+  $row = $st->fetch();
+  if (!$row) json_err('Cadastro de assinatura não encontrado.', 404);
+  if ((string)$row['status'] === 'pago' && (string)$row['tenant_id'] !== '') {
+    return [
+      'jaPago' => true,
+      'igreja' => ['id' => $row['tenant_id'], 'nome' => $row['nome'], 'status' => 'ativa'],
+      'login' => ['username' => (string)$row['username'], 'senha' => '', 'nome' => $row['responsavel'], 'email' => $row['email']],
+      'emailEnviado' => true,
+    ];
+  }
+
+  $criado = criar_cliente($pdo, [
+    'nome' => $row['nome'],
+    'cidade' => $row['cidade'],
+    'responsavel' => $row['responsavel'],
+    'email' => $row['email'],
+    'telefone' => $row['telefone'],
+  ], 'ativa');
+
+  $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, username=?, pago_em=? WHERE id=?')
+    ->execute([
+      'pago',
+      $paymentId,
+      $criado['igreja']['id'],
+      $criado['login']['username'],
+      gmdate('c'),
+      $signupId,
+    ]);
+  return $criado;
+}
+
+function processar_pagamento_mp(PDO $pdo, string $paymentId): bool {
+  $paymentId = trim($paymentId);
+  if ($paymentId === '') return false;
+  $res = mp_api('GET', '/v1/payments/' . rawurlencode($paymentId));
+  if (!$res['ok']) return false;
+  $pay = $res['data'];
+  if ((string)($pay['status'] ?? '') !== 'approved') return false;
+  $ref = (string)($pay['external_reference'] ?? '');
+  if ($ref === '') $ref = (string)(($pay['metadata']['signup_id'] ?? ''));
+  if ($ref === '') return false;
+  $amount = (float)($pay['transaction_amount'] ?? 0);
+  $stPlano = $pdo->prepare('SELECT plano FROM signups WHERE id = ?');
+  $stPlano->execute([$ref]);
+  $rowPlano = $stPlano->fetch();
+  $planoId = ((string)($rowPlano['plano'] ?? '')) === 'parcelado' ? 'parcelado' : 'avista';
+  if ($amount + 0.009 < preco_assinatura($planoId)) return false;
+  ativar_signup_pago($pdo, $ref, $paymentId);
+  return true;
+}
+
+function processar_notificacao_mp(PDO $pdo, string $topic, string $id): void {
+  $topic = strtolower(trim($topic));
+  $id = trim($id);
+  if ($id === '') return;
+  if ($topic === 'payment' || $topic === 'payment.updated' || $topic === 'payment.created') {
+    processar_pagamento_mp($pdo, $id);
+    return;
+  }
+  if ($topic === 'merchant_order' || $topic === 'merchant_orders' || strpos($topic, 'merchant_order') !== false) {
+    $res = mp_api('GET', '/merchant_orders/' . rawurlencode($id));
+    if (!$res['ok']) return;
+    foreach (($res['data']['payments'] ?? []) as $p) {
+      if (!is_array($p)) continue;
+      if ((string)($p['status'] ?? '') === 'approved' && !empty($p['id'])) {
+        processar_pagamento_mp($pdo, (string)$p['id']);
+      }
+    }
+  }
 }
 
 function senha_e_hash(string $senha): bool {
@@ -793,6 +1209,11 @@ function sync_users(PDO $pdo, string $tenantId, array &$state): void {
     $st = $pdo->prepare('SELECT id, senha_hash, tenant_id, username FROM users WHERE id = ?');
     $st->execute([$id]);
     $row = $st->fetch();
+    if ($row && (string)$row['tenant_id'] !== $tenantId) {
+      $row = null;
+      $id = uid('u');
+      $state['usuarios'][$i]['id'] = $id;
+    }
     if (!$row) {
       $st = $pdo->prepare('SELECT id, senha_hash, tenant_id, username FROM users WHERE username = ?');
       $st->execute([$username]);

@@ -6,7 +6,7 @@ import { ehAppNativo } from './lib/native'
 import { destinoInicial, perfilDe, rotaPermitida } from './lib/perfis'
 import { useStore } from './lib/store'
 import { AlertasPage } from './pages/AlertasPage'
-import { AssinePage } from './pages/AssinePage'
+import { AssinePage, AssineRetornoPage } from './pages/AssinePage'
 import { AvaliacaoPage } from './pages/AvaliacaoPage'
 import { AtividadesPage } from './pages/AtividadesPage'
 import { AvisosPage } from './pages/AvisosPage'
@@ -149,6 +149,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={ehAppNativo() ? <Navigate to="/login" replace /> : <LandingPage />} />
       <Route path="/assine" element={<AssinePage />} />
+      <Route path="/assine/sucesso" element={<AssineRetornoPage tipo="sucesso" />} />
+      <Route path="/assine/falha" element={<AssineRetornoPage tipo="falha" />} />
+      <Route path="/assine/pendente" element={<AssineRetornoPage tipo="pendente" />} />
       <Route path="/privacidade" element={<PrivacidadePage />} />
       <Route path="/termos" element={<TermosPage />} />
       <Route path="/login" element={<LoginPage />} />

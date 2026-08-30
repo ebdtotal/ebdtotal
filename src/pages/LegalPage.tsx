@@ -54,7 +54,7 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
 export function PrivacidadePage() {
   return (
     <Shell title="Política de privacidade">
-      <p>Última atualização: 28 de agosto de 2026.</p>
+      <p>Última atualização: 30 de agosto de 2026.</p>
       <p>
         O EDB Total (<a className="font-medium text-navy underline" href="https://ebdtotal.com">ebdtotal.com</a>) é um sistema para
         igrejas administrarem a Escola Bíblica Dominical. Esta política descreve quais dados tratamos no site e no aplicativo
@@ -63,6 +63,7 @@ export function PrivacidadePage() {
       <h2 className="pt-2 text-base font-semibold text-navy">Quais dados coletamos</h2>
       <ul className="list-disc space-y-1 pl-5">
         <li>Dados da igreja: nome, cidade, responsável, e-mail e WhatsApp informados na assinatura.</li>
+        <li>Pagamento da assinatura: processado pelo Mercado Pago. Não guardamos número de cartão.</li>
         <li>Contas de acesso: nome, usuário, senha (armazenada com hash) e perfil (aluno, professor, secretário, superintendente).</li>
         <li>
           Dados da EBD lançados pela igreja: alunos, turmas, presença, Bíblia, revista, oferta, lições, avaliações, avisos,
@@ -114,10 +115,18 @@ export function PrivacidadePage() {
 export function TermosPage() {
   return (
     <Shell title="Termos de uso">
-      <p>Última atualização: 28 de agosto de 2026.</p>
+      <p>Última atualização: 30 de agosto de 2026.</p>
       <p>
-        Ao criar uma igreja no EDB Total ou entrar no aplicativo, você concorda com estes termos. O serviço é oferecido para
-        gestão da Escola Bíblica Dominical — chamada, cadastros, lição, avaliação, avisos, certificados e relatórios.
+        Ao criar uma igreja no EDB Total, assinar o plano ou entrar no aplicativo, você concorda com estes termos. O serviço é
+        oferecido para gestão da Escola Bíblica Dominical — chamada, cadastros, lição, avaliação, avisos, certificados e
+        relatórios.
+      </p>
+      <h2 className="pt-2 text-base font-semibold text-navy">Assinatura e pagamento</h2>
+      <p>
+        O plano Igreja é anual: R$ 1.299 à vista ou R$ 1.499 em até 12 parcelas iguais. O cadastro no site leva ao pagamento;
+        o login e a senha inicial são enviados ao e-mail informado somente após a confirmação do pagamento, pelo endereço
+        naoresponda@ebdtotal.com. Cada igreja pode cadastrar até 600 pessoas. O acesso pode ser suspenso em caso de
+        inadimplência.
       </p>
       <h2 className="pt-2 text-base font-semibold text-navy">Conta e responsabilidade</h2>
       <p>

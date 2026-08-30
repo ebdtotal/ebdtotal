@@ -134,7 +134,7 @@ export function rotaPermitida(perfil: PerfilApp, pathname: string): boolean {
   if (pathname.startsWith('/portal')) return perfil === 'aluno'
   if (pathname === '/conta') return true
   if (pathname === '/master') return perfil === 'superintendente'
-  if (pathname === '/' || pathname === '/assine' || pathname === '/privacidade' || pathname === '/termos') return true
+  if (pathname === '/' || pathname.startsWith('/assine') || pathname === '/privacidade' || pathname === '/termos') return true
   if (pathname === '/login') return true
   return NAV[perfil].some((i) => pathname === i.to || (i.to !== '/' && pathname.startsWith(i.to)))
 }

@@ -5,7 +5,7 @@ const KEY = 'ebd-tema'
 function pathPublico() {
   try {
     const p = window.location.pathname.replace(/\/$/, '') || '/'
-    return p === '/' || p === '/assine' || p === '/privacidade' || p === '/termos'
+    return p === '/' || p.startsWith('/assine') || p === '/privacidade' || p === '/termos'
   } catch {
     return false
   }

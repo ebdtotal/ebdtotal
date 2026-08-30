@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Field, PrimaryButton, inputClass } from '../components/ui'
-import { apiAssinar, apiClientes, apiStatusIgreja, type CadastroGeral, type IgrejaCliente } from '../lib/api'
+import { apiAssinar, apiClientes, apiConfirmarSignup, apiStatusIgreja, type AssinaturaPendente, type CadastroGeral, type IgrejaCliente } from '../lib/api'
 import { useStore } from '../lib/store'
 
 export function MasterPage() {
   const { usuario } = useStore()
   const [igrejas, setIgrejas] = useState<IgrejaCliente[]>([])
   const [cadastros, setCadastros] = useState<CadastroGeral[]>([])
+  const [assinaturas, setAssinaturas] = useState<AssinaturaPendente[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [form, setForm] = useState({ nome: '', cidade: '', responsavel: '', email: '', telefone: '' })
   const [novo, setNovo] = useState<{ username: string; senha: string; email?: string } | null>(null)
@@ -17,6 +18,7 @@ export function MasterPage() {
       .then((r) => {
         setIgrejas(r.igrejas)
         setCadastros(r.cadastros)
+        setAssinaturas(r.assinaturas ?? [])
       })
       .catch((e: Error) => setErro(e.message))
   }
@@ -30,7 +32,9 @@ export function MasterPage() {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-ink">Igrejas assinantes</h1>
-      <p className="mt-1 text-sm text-muted">Cadastro automático de login. Os cadastros do app entram na contabilização geral.</p>
+      <p className="mt-1 text-sm text-muted">
+        Cadastro direto (sem pagamento) ou confirmação das assinaturas do site. Os cadastros do app entram na contabilização geral.
+      </p>
       <p className="mt-2 text-sm">
         <Link to="/atividades" className="font-semibold text-navy hover:underline">
           Ver registro de atividades dos logins →
@@ -76,6 +80,68 @@ export function MasterPage() {
           </p>
         ) : null}
         {erro ? <p className="mt-2 text-sm text-red-600">{erro}</p> : null}
+      </section>
+
+      <section className="mt-5 overflow-x-auto rounded-xl bg-white shadow-sm">
+        <h2 className="px-4 pt-4 text-lg font-semibold">Assinaturas do site</h2>
+        <p className="px-4 pt-1 text-sm text-muted">
+          Quem preencheu /assine. O acesso só é criado depois do pagamento (ou da confirmação manual abaixo).
+        </p>
+        <table className="data mt-2 w-full min-w-[720px] text-left">
+          <thead>
+            <tr>
+              <th className="px-4 py-3">Igreja</th>
+              <th className="px-4 py-3">Responsável</th>
+              <th className="px-4 py-3">E-mail</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assinaturas.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-muted" colSpan={5}>
+                  Nenhuma assinatura pelo site ainda.
+                </td>
+              </tr>
+            ) : (
+              assinaturas.map((a) => (
+                <tr key={a.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{a.nome}</div>
+                    <div className="text-xs text-muted">{a.cidade}</div>
+                  </td>
+                  <td className="px-4 py-3">{a.responsavel}</td>
+                  <td className="px-4 py-3">{a.email}</td>
+                  <td className="px-4 py-3">
+                    {a.status === 'pago' ? `Pago${a.username ? ` · ${a.username}` : ''}` : 'Pendente'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.status === 'pendente' ? (
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-navy hover:underline"
+                        onClick={() => {
+                          setErro(null)
+                          void apiConfirmarSignup(a.id)
+                            .then((r) => {
+                              if (r.login) setNovo(r.login)
+                              carregar()
+                            })
+                            .catch((err: Error) => setErro(err.message))
+                        }}
+                      >
+                        Confirmar e enviar acesso
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </section>
 
       <section className="mt-5 overflow-x-auto rounded-xl bg-white shadow-sm">

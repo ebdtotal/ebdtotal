@@ -19,6 +19,7 @@ import {
   type TipoPessoa,
 } from '../lib/types'
 import { formatDateBR, matches, parseDateBR, senhaGerada, uid } from '../lib/utils'
+import { LIMITE_PESSOAS_IGREJA } from '../lib/planos'
 
 const emptyForm = (escolaId: string): Pessoa => ({
   id: uid('p'),
@@ -73,6 +74,9 @@ export function CadastrosPage() {
   } | null>(null)
   const [previewPdf, setPreviewPdf] = useState<string | null>(null)
   const [excluirPessoa, setExcluirPessoa] = useState<Pessoa | null>(null)
+  const [erroLimite, setErroLimite] = useState<string | null>(null)
+  const noLimite = state.pessoas.length >= LIMITE_PESSOAS_IGREJA
+  const vagas = Math.max(0, LIMITE_PESSOAS_IGREJA - state.pessoas.length)
 
   useEffect(() => {
     if (!acessoSalvo) return
@@ -202,6 +206,10 @@ export function CadastrosPage() {
       }
       itens.push({ pessoa, acesso })
     })
+    if (itens.length > vagas) {
+      erros.push(`O plano permite ${LIMITE_PESSOAS_IGREJA} cadastros. Só restam ${vagas} vagas — importamos até esse limite.`)
+      itens.splice(vagas)
+    }
     importarPessoas(itens)
     return { ok: itens.length, erros }
   }
@@ -215,12 +223,23 @@ export function CadastrosPage() {
             {ehProfessor
               ? 'Alunos da sua turma. Somente o master e o superintendente cadastram.'
               : podeCadastrar
-                ? 'Lista de registros e suas respectivas congregações. No cadastro, defina o login do app.'
+                ? `Lista de registros e suas respectivas congregações. ${state.pessoas.length} de ${LIMITE_PESSOAS_IGREJA} cadastros.`
                 : 'Lista de registros da congregação. Somente o master e o superintendente cadastram.'}
           </p>
+          {erroLimite ? <p className="mt-1 text-sm text-red-600">{erroLimite}</p> : null}
         </div>
         {podeCadastrar ? (
-          <PrimaryButton onClick={() => setEditing(emptyForm(escolasVisiveis[0]?.id ?? ''))}>
+          <PrimaryButton
+            disabled={noLimite}
+            onClick={() => {
+              if (noLimite) {
+                setErroLimite(`Limite de ${LIMITE_PESSOAS_IGREJA} cadastros de pessoas por igreja.`)
+                return
+              }
+              setErroLimite(null)
+              setEditing(emptyForm(escolasVisiveis[0]?.id ?? ''))
+            }}
+          >
             <Plus size={16} /> Novo cadastro
           </PrimaryButton>
         ) : null}
@@ -389,7 +408,12 @@ export function CadastrosPage() {
           pessoa={editing}
           onClose={() => setEditing(null)}
           onSave={(p, acesso) => {
-            savePessoa(p, acesso)
+            const erro = savePessoa(p, acesso)
+            if (erro) {
+              setErroLimite(erro)
+              return
+            }
+            setErroLimite(null)
             if (acesso?.username) {
               setAcessoSalvo({
                 nome: p.nome,

@@ -32,6 +32,15 @@ if (!$user || !password_verify($senha, $user['senha_hash'])) {
   json_err('Usuário ou senha inválidos.', 401);
 }
 
+if (($user['papel'] ?? '') !== 'admin') {
+  $ts = $pdo->prepare('SELECT status FROM tenants WHERE id = ?');
+  $ts->execute([(string)$user['tenant_id']]);
+  $ten = $ts->fetch();
+  if ($ten && (string)$ten['status'] === 'suspensa') {
+    json_err('Esta igreja está suspensa. Fale com o suporte da EDB Total.', 403);
+  }
+}
+
 $token = bin2hex(random_bytes(24));
 $pdo->prepare('INSERT INTO sessions (token,user_id,tenant_id,expires_at) VALUES (?,?,?,?)')
   ->execute([$token, $user['id'], $user['tenant_id'], time() + 60 * 60 * 24 * 14]);

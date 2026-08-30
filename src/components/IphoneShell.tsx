@@ -11,7 +11,7 @@ export function deveEnquadrarIphone() {
   if (window.matchMedia('(display-mode: standalone)').matches) return false
   if (window.self !== window.top) return false
   const path = window.location.pathname
-  if (path === '/' || path === '/assine' || path === '/privacidade' || path === '/termos') return false
+  if (path === '/' || path.startsWith('/assine') || path === '/privacidade' || path === '/termos') return false
   const host = window.location.hostname
   return host === 'localhost' || host === '127.0.0.1'
 }
