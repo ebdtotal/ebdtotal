@@ -19,7 +19,14 @@ import {
 } from './api'
 import { acharVarianteTurma, catalogoDeLicao, chaveAula, deduplicarLicoes, ehLicaoGeral, idCatalogoPadrao } from './acompanhamento'
 import { ehAppNativo, EVENTO_SYNC } from './native'
-import { CAT_REVISTAS_VENDIDAS_ID, garantirCategorias } from './ebdSetores'
+import {
+  CAT_OFERTA_EBD_ID,
+  CAT_REVISTAS_VENDIDAS_ID,
+  garantirCategorias,
+  idLancOfertaClasse,
+  idLancRevista,
+  revistaGeraReceita,
+} from './ebdSetores'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
   AppState,
@@ -313,7 +320,7 @@ type StoreValue = {
   saveTurma: (turma: TurmaCadastro) => void
   importarTurmas: (turmas: TurmaCadastro[]) => void
   removeTurma: (id: string) => void
-  saveRelatorio: (relatorio: RelatorioDiario) => void
+  saveRelatorio: (relatorio: RelatorioDiario, ctx?: { turma?: string }) => void
   saveLancamento: (lancamento: LancamentoFinanceiro) => void
   removeLancamento: (id: string) => void
   saveCategoriaFinanceira: (categoria: CategoriaFinanceira) => void
@@ -639,7 +646,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }, [commit])
 
-  const saveRelatorio = useCallback((relatorio: RelatorioDiario) => {
+  const saveRelatorio = useCallback((relatorio: RelatorioDiario, ctx?: { turma?: string }) => {
     const agora = new Date().toISOString()
     commit((prev) => {
       const payload = { ...relatorio, updatedAt: agora }
@@ -647,32 +654,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const relatorios = exists
         ? prev.relatorios.map((r) => (r.id === payload.id ? payload : r))
         : [...prev.relatorios, payload]
-      const lancId = `oferta_${payload.id}`
+      const turma = (ctx?.turma ?? '').trim()
+      const valor = turma.toLowerCase() === 'professores' ? (payload.ofertaProfessores ?? 0) : payload.oferta
+      const lancId = turma ? idLancOfertaClasse(payload.escolaId, payload.data, turma) : `oferta_${payload.id}`
       let lancamentos = prev.lancamentos
-      if (payload.oferta > 0) {
+      let lancamentosRemovidos = prev.lancamentosRemovidos
+      if (valor > 0) {
         const lanc: LancamentoFinanceiro = {
           id: lancId,
           escolaId: payload.escolaId,
           data: payload.data,
           tipo: 'oferta',
-          descricao: `Oferta EBD ${formatDateBR(payload.data)}`,
-          valor: payload.oferta,
+          descricao: turma
+            ? `Oferta EBD ${turma} · ${formatDateBR(payload.data)}`
+            : `Oferta EBD ${formatDateBR(payload.data)}`,
+          valor,
+          turma: turma || undefined,
+          categoriaId: CAT_OFERTA_EBD_ID,
           updatedAt: agora,
         }
         lancamentos = lancamentos.some((l) => l.id === lancId)
           ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
           : [...lancamentos, lanc]
+        lancamentosRemovidos = tirarRemovido(lancamentosRemovidos, lancId)
       } else {
+        const existia = lancamentos.some((l) => l.id === lancId)
         lancamentos = lancamentos.filter((l) => l.id !== lancId)
+        if (existia) lancamentosRemovidos = marcarRemovidos(lancamentosRemovidos, [lancId])
       }
       return {
         ...prev,
         relatorios,
         lancamentos,
-        lancamentosRemovidos:
-          payload.oferta > 0
-            ? tirarRemovido(prev.lancamentosRemovidos, lancId)
-            : marcarRemovidos(prev.lancamentosRemovidos, [lancId]),
+        lancamentosRemovidos,
+        categoriasFinanceiras: garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas),
       }
     }, true)
   }, [commit])
@@ -763,11 +778,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const revistas = lista.some((r) => r.id === gravar.id)
         ? lista.map((r) => (r.id === gravar.id ? gravar : r))
         : [...lista, gravar]
-      const lancId = `revpag_${gravar.id}`
+      const lancId = idLancRevista(gravar.id)
       const pessoa = prev.pessoas.find((p) => p.id === gravar.pessoaId)
       let lancamentos = prev.lancamentos
       let lancamentosRemovidos = prev.lancamentosRemovidos
-      if (gravar.pagou && gravar.valor > 0) {
+      if (revistaGeraReceita(gravar)) {
         const lanc: LancamentoFinanceiro = {
           id: lancId,
           escolaId: gravar.escolaId,
@@ -801,7 +816,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const removeRevista = useCallback((id: string) => {
     commit((prev) => {
-      const lancId = `revpag_${id}`
+      const lancId = idLancRevista(id)
       const existiaLanc = prev.lancamentos.some((l) => l.id === lancId)
       return {
         ...prev,

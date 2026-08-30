@@ -915,8 +915,21 @@ function merge_state(array $old, array $new): array {
     is_array($old['relatorios'] ?? null) ? $old['relatorios'] : [],
     is_array($new['relatorios'] ?? null) ? $new['relatorios'] : []
   );
-  foreach (campos_tombstone() as $_campo => $tumba) {
+  foreach (campos_tombstone() as $campo => $tumba) {
     $out[$tumba] = unir_ids($old[$tumba] ?? null, $new[$tumba] ?? null);
+    $vivos = [];
+    foreach (is_array($new[$campo] ?? null) ? $new[$campo] : [] as $item) {
+      if (is_array($item) && !empty($item['id'])) $vivos[(string)$item['id']] = true;
+    }
+    if ($vivos) {
+      $ids = [];
+      foreach ($out[$tumba] as $id) {
+        $id = (string)$id;
+        if ($id === '' || isset($vivos[$id])) continue;
+        $ids[] = $id;
+      }
+      $out[$tumba] = array_values(array_unique($ids));
+    }
   }
   $removidas = array_flip($out['licoesRemovidas']);
   $licoes = [];

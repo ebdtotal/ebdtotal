@@ -188,7 +188,9 @@ export function ChamadaPage() {
 
   function salvar(lista: ChamadaAluno[], extra = extrasAgora(), finalizar = false) {
     if (bloqueado) return
-    saveRelatorio(montar(lista, extra, { finalizado: finalizar || finalizado }))
+    saveRelatorio(montar(lista, extra, { finalizado: finalizar || finalizado }), {
+      turma: modoProfessores ? 'Professores' : turma || undefined,
+    })
   }
 
   function autoSalvar(lista: ChamadaAluno[], extra = extrasAgora()) {

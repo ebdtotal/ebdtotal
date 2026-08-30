@@ -10,7 +10,6 @@ import { useStore } from '../lib/store'
 import { nomeEscola } from '../lib/stats'
 import {
   NATUREZAS_FINANCEIRAS,
-  TIPOS_LANCAMENTO,
   type CategoriaFinanceira,
   type LancamentoFinanceiro,
   type NaturezaFinanceira,
@@ -20,18 +19,20 @@ import {
 } from '../lib/types'
 import { formatDateBR, moneyBR, toISODate, uid } from '../lib/utils'
 
-const LABELS: Record<TipoLancamento, string> = {
-  oferta: 'Oferta',
-  dizimo: 'Dízimo',
-  despesa: 'Despesa',
-  outro: 'Outro',
-}
-
-type AbaFin = 'lancamentos' | 'categorias' | 'relatorios' | 'revistas'
-
 function ehReceita(tipo: TipoLancamento) {
   return tipo !== 'despesa'
 }
+
+function rotuloTipo(tipo: TipoLancamento) {
+  return ehReceita(tipo) ? 'Receita' : 'Despesa'
+}
+
+function tipoDaNatureza(natureza: NaturezaFinanceira, atual: TipoLancamento): TipoLancamento {
+  if (natureza === 'despesa') return 'despesa'
+  return atual === 'despesa' ? 'outro' : atual
+}
+
+type AbaFin = 'lancamentos' | 'categorias' | 'relatorios' | 'revistas'
 
 function toggleId(ids: string[], id: string) {
   return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
@@ -83,7 +84,12 @@ function AbaLancamentos() {
   const categorias = state.categoriasFinanceiras ?? []
 
   const lista = state.lancamentos
-    .filter((l) => ids.has(l.escolaId) && l.data.startsWith(String(ano)) && (!tipo || l.tipo === tipo))
+    .filter((l) => {
+      if (!ids.has(l.escolaId) || !l.data.startsWith(String(ano))) return false
+      if (tipo === 'receita') return ehReceita(l.tipo)
+      if (tipo === 'despesa') return !ehReceita(l.tipo)
+      return true
+    })
     .sort((a, b) => b.data.localeCompare(a.data))
 
   const receitas = lista.filter((l) => ehReceita(l.tipo)).reduce((a, l) => a + l.valor, 0)
@@ -103,7 +109,7 @@ function AbaLancamentos() {
               id: uid('fin'),
               escolaId: escolasVisiveis[0]?.id ?? '',
               data: toISODate(new Date()),
-              tipo: 'oferta',
+              tipo: 'outro',
               descricao: '',
               valor: 0,
             })
@@ -136,11 +142,8 @@ function AbaLancamentos() {
             </select>
             <select className={inputClass + ' w-36'} value={tipo} onChange={(e) => setTipo(e.target.value)}>
               <option value="">Todos os tipos</option>
-              {TIPOS_LANCAMENTO.map((t) => (
-                <option key={t} value={t}>
-                  {LABELS[t]}
-                </option>
-              ))}
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
             </select>
           </div>
         </div>
@@ -168,7 +171,7 @@ function AbaLancamentos() {
                     <td className="px-3 py-3">{formatDateBR(l.data)}</td>
                     <td className="px-3 py-3">{nomeEscola(state.escolas, l.escolaId)}</td>
                     <td className="px-3 py-3">{l.turma || '—'}</td>
-                    <td className="px-3 py-3">{LABELS[l.tipo]}</td>
+                    <td className="px-3 py-3">{rotuloTipo(l.tipo)}</td>
                     <td className="px-3 py-3">{nomeCat(l.categoriaId)}</td>
                     <td className="px-3 py-3">{l.descricao}</td>
                     <td className={`px-3 py-3 font-medium ${ehReceita(l.tipo) ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -234,16 +237,17 @@ function AbaLancamentos() {
             <Field label="Tipo">
               <select
                 className={inputClass}
-                value={editing.tipo}
+                value={ehReceita(editing.tipo) ? 'receita' : 'despesa'}
                 onChange={(e) =>
-                  setEditing({ ...editing, tipo: e.target.value as TipoLancamento, categoriaId: undefined })
+                  setEditing({
+                    ...editing,
+                    tipo: tipoDaNatureza(e.target.value as NaturezaFinanceira, editing.tipo),
+                    categoriaId: undefined,
+                  })
                 }
               >
-                {TIPOS_LANCAMENTO.map((t) => (
-                  <option key={t} value={t}>
-                    {LABELS[t]}
-                  </option>
-                ))}
+                <option value="receita">Receita</option>
+                <option value="despesa">Despesa</option>
               </select>
             </Field>
             <Field label="Categoria">
@@ -492,7 +496,7 @@ function AbaRelatorios() {
         Data: formatDateBR(l.data),
         Escola: nomeEscola(state.escolas, l.escolaId),
         Turma: l.turma || '',
-        Tipo: LABELS[l.tipo],
+        Tipo: rotuloTipo(l.tipo),
         Categoria: nomeCat(l.categoriaId),
         Descricao: l.descricao,
         Valor: l.valor,
@@ -517,7 +521,7 @@ function AbaRelatorios() {
         formatDateBR(l.data),
         nomeEscola(state.escolas, l.escolaId),
         l.turma || '—',
-        LABELS[l.tipo],
+        rotuloTipo(l.tipo),
         nomeCat(l.categoriaId),
         l.descricao,
         `${ehReceita(l.tipo) ? '+' : '−'}${moneyBR(l.valor)}`,
@@ -695,7 +699,7 @@ function AbaRelatorios() {
                     <td className="px-3 py-3">{formatDateBR(l.data)}</td>
                     <td className="px-3 py-3">{nomeEscola(state.escolas, l.escolaId)}</td>
                     <td className="px-3 py-3">{l.turma || '—'}</td>
-                    <td className="px-3 py-3">{LABELS[l.tipo]}</td>
+                    <td className="px-3 py-3">{rotuloTipo(l.tipo)}</td>
                     <td className="px-3 py-3">{nomeCat(l.categoriaId)}</td>
                     <td className="px-3 py-3">{l.descricao}</td>
                     <td className={`px-3 py-3 font-medium ${ehReceita(l.tipo) ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -734,12 +738,19 @@ function AbaRelatorios() {
               <input className={inputClass} type="number" min={0} step="0.01" value={editing.valor} onChange={(e) => setEditing({ ...editing, valor: Number(e.target.value) })} />
             </Field>
             <Field label="Tipo">
-              <select className={inputClass} value={editing.tipo} onChange={(e) => setEditing({ ...editing, tipo: e.target.value as TipoLancamento })}>
-                {TIPOS_LANCAMENTO.map((t) => (
-                  <option key={t} value={t}>
-                    {LABELS[t]}
-                  </option>
-                ))}
+              <select
+                className={inputClass}
+                value={ehReceita(editing.tipo) ? 'receita' : 'despesa'}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    tipo: tipoDaNatureza(e.target.value as NaturezaFinanceira, editing.tipo),
+                    categoriaId: undefined,
+                  })
+                }
+              >
+                <option value="receita">Receita</option>
+                <option value="despesa">Despesa</option>
               </select>
             </Field>
             <div className="flex justify-end gap-2">

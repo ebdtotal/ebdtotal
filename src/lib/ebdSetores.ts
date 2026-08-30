@@ -40,6 +40,30 @@ export function garantirSetoresEbd(atuais: SetorEbd[] | undefined, removidos: st
 }
 
 export const CAT_REVISTAS_VENDIDAS_ID = 'cat-revistas-vendidas'
+export const CAT_OFERTA_EBD_ID = 'cat-oferta'
+
+export function slugTurma(nome: string) {
+  const slug = nome
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'classe'
+}
+
+export function idLancRevista(revistaId: string) {
+  return `revpag_${revistaId}`
+}
+
+export function idLancOfertaClasse(escolaId: string, data: string, turma: string) {
+  return `oferta_${escolaId}_${data}_${slugTurma(turma)}`
+}
+
+export function revistaGeraReceita(r: { recebeu: boolean; pagou: boolean; valor: number }) {
+  return (r.recebeu || r.pagou) && r.valor > 0
+}
 
 export function garantirCategorias(atuais: CategoriaFinanceira[] | undefined, removidas: string[] | undefined): CategoriaFinanceira[] {
   const rem = new Set(removidas ?? [])
