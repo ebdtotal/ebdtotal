@@ -57,7 +57,9 @@ workflows:
           xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
       - name: Ficha da App Store
         script: |
+          set +e
           node scripts/app-store-prepare.mjs
+          echo "Ficha da App Store: exit $?"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
@@ -66,7 +68,5 @@ workflows:
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
-        submit_to_app_store: true
-        cancel_previous_submissions: true
-        release_type: AFTER_APPROVAL
-        copyright: 2026 EDB Total
+        expire_build_submitted_for_review: true
+        submit_to_app_store: false

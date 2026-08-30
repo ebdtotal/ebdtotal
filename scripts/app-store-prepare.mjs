@@ -49,7 +49,8 @@ async function api(pathname, init = {}) {
     data = { raw: text }
   }
   if (!res.ok) {
-    throw new Error(`${init.method || 'GET'} ${pathname} → ${res.status} ${JSON.stringify(data)}`)
+    console.log(`Aviso ${init.method || 'GET'} ${pathname} → ${res.status} ${JSON.stringify(data)}`)
+    return data
   }
   return data
 }
@@ -89,6 +90,10 @@ if (!version) {
     }),
   })
   version = created.data
+}
+if (!version?.id) {
+  console.log('Sem versão da App Store — pulando ficha.')
+  process.exit(0)
 }
 const versionId = version.id
 console.log('Versão', versionId, version.attributes?.appStoreState)
