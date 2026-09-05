@@ -1,21 +1,45 @@
 import { Cake, GraduationCap, MessageCircle, UserX } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Confirmacao } from '../components/ui'
 import { alertasMudancaFaixa } from '../lib/faixa'
 import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
-import { aniversariantes, ausentesRecentes, nomeEscola } from '../lib/stats'
+import {
+  aniversariantes,
+  ausentesRecentes,
+  chaveAlertaAniversario,
+  chaveAlertaAusente,
+  chaveAlertaFaixa,
+  nomeEscola,
+  semAlertasExcluidos,
+} from '../lib/stats'
 import { formatDateBR, whatsappUrl } from '../lib/utils'
 
 export function AlertasPage() {
-  const { state, escolasVisiveis, pessoasVisiveis, usuario } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, usuario, excluirAlerta } = useStore()
   const perfil = perfilDe(usuario?.papel)
+  const podeExcluir = perfil === 'superintendente'
+  const [pendente, setPendente] = useState<{ chave: string; nome: string } | null>(null)
   const ids = useMemo(() => new Set(escolasVisiveis.map((e) => e.id)), [escolasVisiveis])
-  const ausentes = ausentesRecentes(state, ids)
-  const nivers = aniversariantes(pessoasVisiveis, 7)
+  const excluidos = state.alertasExcluidos
+  const ausentes = semAlertasExcluidos(
+    ausentesRecentes(state, ids),
+    (l) => chaveAlertaAusente(l.pessoa.id),
+    excluidos,
+  )
+  const nivers = semAlertasExcluidos(
+    aniversariantes(pessoasVisiveis, 7),
+    (n) => chaveAlertaAniversario(n.pessoa.id, n.quando),
+    excluidos,
+  )
   const faixas =
     perfil === 'professor' || perfil === 'superintendente'
-      ? alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? [])
+      ? semAlertasExcluidos(
+          alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? []),
+          (a) => chaveAlertaFaixa(a.pessoa.id, a.faixaNova),
+          excluidos,
+        )
       : []
 
   return (
@@ -33,18 +57,27 @@ export function AlertasPage() {
             ) : (
               <ul className="space-y-2">
                 {faixas.map((a) => (
-                  <li key={a.pessoa.id} className="rounded-md border-l-4 border-navy bg-slate-50 px-3 py-2">
-                    <div className="font-medium">
-                      <Link to={`/alunos/${a.pessoa.id}`} className="hover:underline">
-                        {a.pessoa.nome}
-                      </Link>
+                  <li key={a.pessoa.id} className="flex items-start justify-between gap-3 rounded-md border-l-4 border-navy bg-slate-50 px-3 py-2">
+                    <div>
+                      <div className="font-medium">
+                        <Link to={`/alunos/${a.pessoa.id}`} className="hover:underline">
+                          {a.pessoa.nome}
+                        </Link>
+                      </div>
+                      <div className="text-sm text-ink">
+                        {a.idade} anos · no próximo trimestre deverá migrar de {a.faixaAtual} para {a.faixaNova}.
+                      </div>
+                      <div className="text-xs text-muted">
+                        {a.pessoa.turma} · {nomeEscola(state.escolas, a.pessoa.escolaId)}
+                      </div>
                     </div>
-                    <div className="text-sm text-ink">
-                      {a.idade} anos · no próximo trimestre deverá migrar de {a.faixaAtual} para {a.faixaNova}.
-                    </div>
-                    <div className="text-xs text-muted">
-                      {a.pessoa.turma} · {nomeEscola(state.escolas, a.pessoa.escolaId)}
-                    </div>
+                    {podeExcluir ? (
+                      <BotaoExcluirAlerta
+                        onClick={() =>
+                          setPendente({ chave: chaveAlertaFaixa(a.pessoa.id, a.faixaNova), nome: a.pessoa.nome })
+                        }
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -60,7 +93,7 @@ export function AlertasPage() {
           ) : (
             <ul className="space-y-2">
               {ausentes.map((l) => (
-                <li key={l.pessoa.id} className="flex items-center justify-between rounded-md border-l-4 border-amber-400 bg-amber-50 px-3 py-2">
+                <li key={l.pessoa.id} className="flex items-center justify-between gap-3 rounded-md border-l-4 border-amber-400 bg-amber-50 px-3 py-2">
                   <div>
                     <div className="font-medium">
                       <Link to={`/alunos/${l.pessoa.id}`} className="hover:underline">
@@ -71,16 +104,23 @@ export function AlertasPage() {
                       {l.pessoa.turma} · {nomeEscola(state.escolas, l.pessoa.escolaId)} · {l.faltas} faltas
                     </div>
                   </div>
-                  {l.pessoa.telefone ? (
-                    <a
-                      className="text-emerald-600"
-                      href={whatsappUrl(l.pessoa.telefone, `Olá! Notamos a ausência de ${l.pessoa.nome} na EBD. Podemos ajudar?`)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <MessageCircle size={18} />
-                    </a>
-                  ) : null}
+                  <div className="flex shrink-0 items-center gap-2">
+                    {l.pessoa.telefone ? (
+                      <a
+                        className="text-emerald-600"
+                        href={whatsappUrl(l.pessoa.telefone, `Olá! Notamos a ausência de ${l.pessoa.nome} na EBD. Podemos ajudar?`)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <MessageCircle size={18} />
+                      </a>
+                    ) : null}
+                    {podeExcluir ? (
+                      <BotaoExcluirAlerta
+                        onClick={() => setPendente({ chave: chaveAlertaAusente(l.pessoa.id), nome: l.pessoa.nome })}
+                      />
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -95,22 +135,60 @@ export function AlertasPage() {
           ) : (
             <ul className="space-y-2">
               {nivers.map((n) => (
-                <li key={n.pessoa.id} className="flex items-center justify-between rounded-md border-l-4 border-pink-400 bg-pink-50 px-3 py-2">
+                <li key={n.pessoa.id} className="flex items-center justify-between gap-3 rounded-md border-l-4 border-pink-400 bg-pink-50 px-3 py-2">
                   <div>
                     <div className="font-medium">{n.pessoa.nome}</div>
                     <div className="text-xs text-muted">
                       {n.pessoa.turma} · {n.idade ?? '—'} anos
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-pink-700">
-                    {formatDateBR(`2026-${n.quando}`).slice(0, 5)}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-sm font-semibold text-pink-700">
+                      {formatDateBR(`2026-${n.quando}`).slice(0, 5)}
+                    </span>
+                    {podeExcluir ? (
+                      <BotaoExcluirAlerta
+                        onClick={() =>
+                          setPendente({
+                            chave: chaveAlertaAniversario(n.pessoa.id, n.quando),
+                            nome: n.pessoa.nome,
+                          })
+                        }
+                      />
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
       </div>
+      <Confirmacao
+        open={!!pendente}
+        titulo="Excluir alerta"
+        texto={
+          pendente
+            ? `O alerta de ${pendente.nome} deixa de aparecer para todos. Continuar?`
+            : ''
+        }
+        onCancel={() => setPendente(null)}
+        onConfirm={() => {
+          if (pendente) excluirAlerta(pendente.chave)
+          setPendente(null)
+        }}
+      />
     </div>
+  )
+}
+
+function BotaoExcluirAlerta({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="shrink-0 text-xs font-semibold text-red-700 hover:underline"
+      onClick={onClick}
+    >
+      Excluir
+    </button>
   )
 }

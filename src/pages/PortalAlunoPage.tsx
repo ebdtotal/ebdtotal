@@ -5,6 +5,7 @@ import { metaDaEscola, progressoMeta, frequenciaAtual } from '../lib/painel'
 import { useStore } from '../lib/store'
 import { aniversariantes, rankingDe } from '../lib/stats'
 import { domingoDaAula, formatDateBR, toISODate } from '../lib/utils'
+import { AvisoRenovacao } from '../components/AvisoRenovacao'
 
 export function PortalAlunoPage() {
   const { state, usuario } = useStore()
@@ -34,6 +35,8 @@ export function PortalAlunoPage() {
     <div>
       <h1 className="text-2xl font-semibold text-ink">Olá, {pessoa?.nome.split(' ')[0] ?? usuario?.nome}</h1>
       <p className="mb-5 text-sm text-muted">{pessoa?.turma} · sua semana na EBD</p>
+
+      <AvisoRenovacao />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card label="Frequência" value={`${ficha?.frequencia ?? 0}%`} />

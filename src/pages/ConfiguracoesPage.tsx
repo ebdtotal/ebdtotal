@@ -2,7 +2,7 @@ import { MoreVertical, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
 import { ROTULO_PAPEL } from '../lib/perfis'
-import { useStore } from '../lib/store'
+import { ehLoginAutomatico, sugestaoUsername, useStore } from '../lib/store'
 import { PAPEIS, type Papel, type Usuario } from '../lib/types'
 import { uid, senhaGerada } from '../lib/utils'
 
@@ -234,7 +234,20 @@ export function ConfiguracoesPage() {
             }}
           >
             <Field label="Nome">
-              <input className={inputClass} required value={userForm.nome} onChange={(e) => setUserForm({ ...userForm, nome: e.target.value })} />
+              <input
+                className={inputClass}
+                required
+                value={userForm.nome}
+                onChange={(e) => {
+                  const nome = e.target.value
+                  const auto = !userForm.username || ehLoginAutomatico(userForm.username, userForm.nome)
+                  setUserForm({
+                    ...userForm,
+                    nome,
+                    username: auto ? sugestaoUsername(nome, state.usuarios, userForm.id) : userForm.username,
+                  })
+                }}
+              />
             </Field>
             <Field label="Username">
               <input className={inputClass} required value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />

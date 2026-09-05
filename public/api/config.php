@@ -19,8 +19,11 @@ return [
     'reply' => getenv('EBD_MAIL_REPLY') ?: 'naoresponda@ebdtotal.com',
   ],
   'pagamento' => [
-    'preco_avista' => (float)(getenv('EBD_PRECO_AVISTA') ?: 1299),
-    'preco_parcelado' => (float)(getenv('EBD_PRECO_PARCELADO') ?: 1499),
+    'preco_avista' => (float)(getenv('EBD_PRECO_AVISTA') ?: 1499),
+    'preco_parcelado' => (float)(getenv('EBD_PRECO_PARCELADO') ?: 1798.8),
+    'preco_essencial' => (float)(getenv('EBD_PRECO_ESSENCIAL') ?: 499),
+    'preco_essencial12' => (float)(getenv('EBD_PRECO_ESSENCIAL12') ?: 588),
+    'preco_teste' => (float)(getenv('EBD_PRECO_TESTE') ?: 2),
     'site_url' => rtrim((string)(getenv('EBD_SITE_URL') ?: 'https://ebdtotal.com'), '/'),
     /* Access Token do Mercado Pago (Checkout Pro). Prefira o arquivo api/data/pagamento.local.php
        (não entra no zip) para não perder o token ao publicar. Sem token, o cadastro fica pendente
@@ -31,5 +34,11 @@ return [
   ],
   'limites' => [
     'pessoas' => (int)(getenv('EBD_LIMITE_PESSOAS') ?: 600),
+  ],
+  /* Segredo para backup via URL. Preferível: Cron com PHP CLI (não precisa de chave).
+     Opcional em api/data/pagamento.local.php: 'backup_secret' => '...', 'backup_dias' => 14 */
+  'backup' => [
+    'secret' => getenv('EBD_BACKUP_SECRET') ?: '',
+    'dias' => (int)(getenv('EBD_BACKUP_DIAS') ?: 14),
   ],
 ];

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { DateInput, Field, GhostButton, Modal, PrimaryButton, Confirmacao, inputClass } from '../components/ui'
+import { AvisoRenovacao } from '../components/AvisoRenovacao'
 import { useStore } from '../lib/store'
 import type { Aviso } from '../lib/types'
 import { formatDateBR, toISODate, uid } from '../lib/utils'
@@ -45,6 +46,8 @@ export function AvisosPage() {
           </PrimaryButton>
         ) : null}
       </div>
+
+      <AvisoRenovacao />
 
       {avisos.length === 0 ? (
         <p className="rounded-xl bg-white p-5 text-sm text-muted shadow-sm">Nenhum aviso publicado ainda.</p>

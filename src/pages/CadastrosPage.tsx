@@ -6,7 +6,7 @@ import { ImportacaoExcel } from '../components/ImportacaoExcel'
 import { TelaImpressao } from '../components/TelaImpressao'
 import { casarOpcao, celula, exportToExcel, lerPlanilha } from '../lib/excel'
 import { htmlListaPdf, tentarImprimirHtml } from '../lib/imprimir'
-import { sugestaoUsername, useStore } from '../lib/store'
+import { ehLoginAutomatico, sugestaoUsername, useStore } from '../lib/store'
 import {
   FAIXAS_ETARIAS,
   SEXOS,
@@ -19,7 +19,6 @@ import {
   type TipoPessoa,
 } from '../lib/types'
 import { formatDateBR, matches, parseDateBR, senhaGerada, uid } from '../lib/utils'
-import { LIMITE_PESSOAS_IGREJA } from '../lib/planos'
 
 const emptyForm = (escolaId: string): Pessoa => ({
   id: uid('p'),
@@ -48,7 +47,7 @@ function precisaAcessoApp(tipo: TipoPessoa) {
 }
 
 export function CadastrosPage() {
-  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, importarPessoas, removePessoa, usuario, ehProfessor } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, savePessoa, importarPessoas, removePessoa, usuario, ehProfessor, limitePessoas } = useStore()
   const podeCadastrar =
     usuario?.papel === 'admin' || usuario?.papel === 'sede' || usuario?.papel === 'superintendente'
   const [filtros, setFiltros] = useState({
@@ -75,8 +74,8 @@ export function CadastrosPage() {
   const [previewPdf, setPreviewPdf] = useState<string | null>(null)
   const [excluirPessoa, setExcluirPessoa] = useState<Pessoa | null>(null)
   const [erroLimite, setErroLimite] = useState<string | null>(null)
-  const noLimite = state.pessoas.length >= LIMITE_PESSOAS_IGREJA
-  const vagas = Math.max(0, LIMITE_PESSOAS_IGREJA - state.pessoas.length)
+  const noLimite = state.pessoas.length >= limitePessoas
+  const vagas = Math.max(0, limitePessoas - state.pessoas.length)
 
   useEffect(() => {
     if (!acessoSalvo) return
@@ -196,7 +195,7 @@ export function CadastrosPage() {
       const papel = papelDoTipo(tipo)
       let acesso: { username: string; senha: string; email?: string } | null = null
       if (papel && status === 'Ativo') {
-        const username = (celula(row, 'login', 'usuario', 'username') || sugestaoUsername(nome, papel, usuarios)).toLowerCase()
+        const username = (celula(row, 'login', 'usuario', 'username') || sugestaoUsername(nome, usuarios)).toLowerCase()
         const senha = celula(row, 'senha') || senhaGerada()
         acesso = { username, senha, email: pessoa.email }
         usuarios = [
@@ -207,7 +206,7 @@ export function CadastrosPage() {
       itens.push({ pessoa, acesso })
     })
     if (itens.length > vagas) {
-      erros.push(`O plano permite ${LIMITE_PESSOAS_IGREJA} cadastros. Só restam ${vagas} vagas — importamos até esse limite.`)
+      erros.push(`O plano permite ${limitePessoas} cadastros. Só restam ${vagas} vagas — importamos até esse limite.`)
       itens.splice(vagas)
     }
     importarPessoas(itens)
@@ -223,7 +222,7 @@ export function CadastrosPage() {
             {ehProfessor
               ? 'Alunos da sua turma. Somente o master e o superintendente cadastram.'
               : podeCadastrar
-                ? `Lista de registros e suas respectivas congregações. ${state.pessoas.length} de ${LIMITE_PESSOAS_IGREJA} cadastros.`
+                ? `Lista de registros e suas respectivas congregações. ${state.pessoas.length} de ${limitePessoas} cadastros.`
                 : 'Lista de registros da congregação. Somente o master e o superintendente cadastram.'}
           </p>
           {erroLimite ? <p className="mt-1 text-sm text-red-600">{erroLimite}</p> : null}
@@ -233,7 +232,7 @@ export function CadastrosPage() {
             disabled={noLimite}
             onClick={() => {
               if (noLimite) {
-                setErroLimite(`Limite de ${LIMITE_PESSOAS_IGREJA} cadastros de pessoas por igreja.`)
+                setErroLimite(`Limite de ${limitePessoas} cadastros de pessoas por igreja.`)
                 return
               }
               setErroLimite(null)
@@ -473,7 +472,7 @@ function PessoaModal({
       setUsuarioId(existente.id)
     } else {
       const papel = papelDoTipo(pessoa.tipo)
-      setUsername(papel && pessoa.nome ? sugestaoUsername(pessoa.nome, papel, state.usuarios) : '')
+      setUsername(papel && pessoa.nome ? sugestaoUsername(pessoa.nome, state.usuarios) : '')
       setSenha(senhaGerada())
       setUserManual(false)
       setUsuarioId(undefined)
@@ -485,15 +484,20 @@ function PessoaModal({
     const papel = papelDoTipo(tipo)
     setForm({ ...form, tipo })
     if (!papel) return
-    const sufixoPadrao = ['.aluno', '.prof', '.super', '.sec'].some((s) => username.toLowerCase().endsWith(s))
-    if (!userManual || sufixoPadrao) setUsername(sugestaoUsername(form.nome, papel, state.usuarios, usuarioId))
+    if (!userManual || ehLoginAutomatico(username, form.nome)) {
+      setUsername(sugestaoUsername(form.nome, state.usuarios, usuarioId))
+      setUserManual(false)
+    }
   }
 
   function atualizarNome(nome: string) {
     if (!form) return
     setForm({ ...form, nome })
     const papel = papelDoTipo(form.tipo)
-    if (!userManual && papel) setUsername(sugestaoUsername(nome, papel, state.usuarios, usuarioId))
+    if ((!userManual || ehLoginAutomatico(username, form.nome)) && papel) {
+      setUsername(sugestaoUsername(nome, state.usuarios, usuarioId))
+      setUserManual(false)
+    }
   }
 
   const mostraAcesso = form ? precisaAcessoApp(form.tipo) && form.status === 'Ativo' : false

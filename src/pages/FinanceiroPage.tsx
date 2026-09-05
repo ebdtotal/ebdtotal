@@ -1,5 +1,5 @@
 import { Download, FileText, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Field, GhostButton, Modal, PrimaryButton, DateInput, Confirmacao, inputClass } from '../components/ui'
 import { TelaImpressao } from '../components/TelaImpressao'
 import { exportToExcel } from '../lib/excel'
@@ -17,10 +17,41 @@ import {
   type RevistaControle,
   type TipoLancamento,
 } from '../lib/types'
-import { formatDateBR, moneyBR, toISODate, uid } from '../lib/utils'
+import { formatDateBR, moneyBR, parseMoneyBR, toISODate, uid } from '../lib/utils'
 
 function ehReceita(tipo: TipoLancamento) {
   return tipo !== 'despesa'
+}
+
+function ValorReaisInput({ valor, onCommit, disabled }: { valor: number; onCommit: (n: number) => void; disabled?: boolean }) {
+  const [texto, setTexto] = useState(() => moneyBR(valor))
+  const [foco, setFoco] = useState(false)
+  useEffect(() => {
+    if (!foco) setTexto(moneyBR(valor))
+  }, [valor, foco])
+  return (
+    <input
+      className={inputClass + ' w-32'}
+      inputMode="decimal"
+      value={texto}
+      disabled={disabled}
+      aria-label="Valor da revista"
+      onClick={(e) => e.stopPropagation()}
+      onFocus={() => {
+        if (disabled) return
+        setFoco(true)
+        setTexto(valor ? valor.toFixed(2).replace('.', ',') : '')
+      }}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() => {
+        const n = parseMoneyBR(texto)
+        const v = n ?? valor
+        if (v !== valor) onCommit(v)
+        setTexto(moneyBR(v))
+        setFoco(false)
+      }}
+    />
+  )
 }
 
 function rotuloTipo(tipo: TipoLancamento) {
@@ -47,6 +78,7 @@ function toggleId(ids: string[], id: string) {
 }
 
 export function FinanceiroPage() {
+  const { bloqueiaChamadaEFinanceiro: travado } = useStore()
   const [aba, setAba] = useState<AbaFin>('lancamentos')
   const abas: { id: AbaFin; label: string }[] = [
     { id: 'lancamentos', label: 'Lançamentos' },
@@ -61,6 +93,12 @@ export function FinanceiroPage() {
         <h1 className="text-2xl font-semibold text-ink">Financeiro</h1>
         <p className="text-sm text-muted">Lançamentos, categorias, relatórios e revistas da EBD</p>
       </div>
+      {travado ? (
+        <p className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Plano vencido: novos lançamentos e alterações estão bloqueados. Relatórios e a consulta dos registros
+          continuam disponíveis.
+        </p>
+      ) : null}
       <div className="mb-5 flex flex-wrap gap-2">
         {abas.map((a) => (
           <button
@@ -82,7 +120,7 @@ export function FinanceiroPage() {
 }
 
 function AbaLancamentos() {
-  const { state, escolasVisiveis, saveLancamento, removeLancamento, usuario } = useStore()
+  const { state, escolasVisiveis, saveLancamento, removeLancamento, usuario, bloqueiaChamadaEFinanceiro: travado } = useStore()
   const anoAtual = new Date().getFullYear()
   const [ano, setAno] = useState(anoAtual)
   const [tipo, setTipo] = useState('')
@@ -111,6 +149,7 @@ function AbaLancamentos() {
   return (
     <div>
       <div className="mb-5 flex justify-end">
+        {travado ? null : (
         <PrimaryButton
           onClick={() =>
             setEditing({
@@ -125,6 +164,7 @@ function AbaLancamentos() {
         >
           <Plus size={16} /> Lançamento
         </PrimaryButton>
+        )}
       </div>
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border-l-4 border-emerald-400 bg-white p-4 shadow-sm">
@@ -187,12 +227,16 @@ function AbaLancamentos() {
                       {moneyBR(l.valor)}
                     </td>
                     <td className="px-3 py-3 text-right">
+                      {travado ? null : (
+                        <>
                       <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(l)}>
                         <Pencil size={15} />
                       </button>
                       <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirLanc(l)}>
                         <Trash2 size={15} />
                       </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -207,6 +251,7 @@ function AbaLancamentos() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault()
+              if (travado) return
               saveLancamento(editing)
               setEditing(null)
             }}
@@ -411,7 +456,7 @@ function AbaCategorias() {
 }
 
 function AbaRelatorios() {
-  const { state, escolasVisiveis, saveLancamento, removeLancamento } = useStore()
+  const { state, escolasVisiveis, saveLancamento, removeLancamento, bloqueiaChamadaEFinanceiro: travado } = useStore()
   const hoje = toISODate(new Date())
   const [de, setDe] = useState(`${new Date().getFullYear()}-01-01`)
   const [ate, setAte] = useState(hoje)
@@ -713,12 +758,16 @@ function AbaRelatorios() {
                       {moneyBR(l.valor)}
                     </td>
                     <td className="px-3 py-3 text-right">
+                      {travado ? null : (
+                        <>
                       <button type="button" className="mr-2 text-muted hover:text-navy" onClick={() => setEditing(l)}>
                         <Pencil size={15} />
                       </button>
                       <button type="button" className="text-muted hover:text-red-600" onClick={() => setExcluirLanc(l)}>
                         <Trash2 size={15} />
                       </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -733,6 +782,7 @@ function AbaRelatorios() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault()
+              if (travado) return
               saveLancamento(editing)
               setEditing(null)
             }}
@@ -797,7 +847,7 @@ function AbaRelatorios() {
 }
 
 function AbaRevistas() {
-  const { state, escolasVisiveis, pessoasVisiveis, saveRevista } = useStore()
+  const { state, escolasVisiveis, pessoasVisiveis, saveRevista, bloqueiaChamadaEFinanceiro: travado } = useStore()
   const agora = new Date()
   const [ano, setAno] = useState(agora.getFullYear())
   const [tri, setTri] = useState(trimestreNumero(agora))
@@ -866,6 +916,7 @@ function AbaRevistas() {
   )
 
   function patch(p: Pessoa, atual: RevistaControle, extra: Partial<RevistaControle>) {
+    if (travado) return
     const next: RevistaControle = { ...atual, ...extra, pessoaId: p.id, escolaId: p.escolaId, turma: p.turma, ano, trimestre: tri }
     if (extra.pagou === true && !next.dataPagamento) next.dataPagamento = toISODate(new Date())
     if (extra.pagou === false) next.dataPagamento = undefined
@@ -991,7 +1042,7 @@ function AbaRevistas() {
           <table className="data w-full min-w-[1100px] text-left">
             <thead>
               <tr>
-                {['Nome', 'Tipo', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Data de pagamento', 'Situação'].map((h) => (
+                {['Nome', 'Tipo', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor (R$)', 'Data de pagamento', 'Situação'].map((h) => (
                   <th key={h} className="px-3 py-3">
                     {h}
                   </th>
@@ -1015,6 +1066,7 @@ function AbaRevistas() {
                       <input
                         type="checkbox"
                         checked={r.pediu}
+                        disabled={travado}
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => patch(p, r, { pediu: !r.pediu })}
                       />
@@ -1023,6 +1075,7 @@ function AbaRevistas() {
                       <input
                         type="checkbox"
                         checked={r.recebeu}
+                        disabled={travado}
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => patch(p, r, { recebeu: !r.recebeu })}
                       />
@@ -1031,25 +1084,20 @@ function AbaRevistas() {
                       <input
                         type="checkbox"
                         checked={r.pagou}
+                        disabled={travado}
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => patch(p, r, { pagou: !r.pagou })}
                       />
                     </td>
                     <td className="px-3 py-3">
-                      <input
-                        className={inputClass + ' w-24'}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={r.valor}
-                        onChange={(e) => patch(p, r, { valor: Number(e.target.value) })}
-                      />
+                      <ValorReaisInput disabled={travado} valor={r.valor} onCommit={(n) => patch(p, r, { valor: n })} />
                     </td>
                     <td className="px-3 py-3">
                       <DateInput
                         className="w-36"
                         value={r.dataPagamento ?? ''}
                         allowEmpty
+                        disabled={travado}
                         onChange={(iso) => {
                           if (iso) patch(p, r, { dataPagamento: iso, pagou: true })
                           else patch(p, r, { dataPagamento: undefined })

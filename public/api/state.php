@@ -5,8 +5,22 @@ require __DIR__ . '/lib.php';
 $sess = auth();
 $pdo = db();
 $tenantId = $sess['tenant_id'];
+$bloqueio = assinatura_bloqueia_papel($pdo, $sess);
+if ($bloqueio) json_err($bloqueio, 403);
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+  $since = etag_cliente();
+  $stAt = $pdo->prepare('SELECT updated_at FROM app_state WHERE tenant_id = ?');
+  $stAt->execute([$tenantId]);
+  $rowAt = $stAt->fetch();
+  $updatedAt = is_array($rowAt) ? (string)($rowAt['updated_at'] ?? '') : '';
+  if ($since !== '' && $updatedAt !== '' && $since === $updatedAt) {
+    header('ETag: "' . str_replace(['\\', '"'], '', $updatedAt) . '"');
+    header('Cache-Control: private, no-cache');
+    http_response_code(304);
+    exit;
+  }
+
   $st = $pdo->prepare('SELECT json, updated_at FROM app_state WHERE tenant_id = ?');
   $st->execute([$tenantId]);
   $row = $st->fetch();
@@ -35,7 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     $updatedAt = $now;
   }
-  json_ok(['state' => $state, 'usuarioId' => $sess['user_id'], 'updatedAt' => $updatedAt]);
+  if ($updatedAt !== '') {
+    header('ETag: "' . str_replace(['\\', '"'], '', $updatedAt) . '"');
+    header('Cache-Control: private, no-cache');
+  }
+  json_ok(['state' => $state, 'usuarioId' => $sess['user_id'], 'updatedAt' => $updatedAt, 'igreja' => igreja_publica($pdo, $tenantId)]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
@@ -43,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT
 }
 
 $in = body();
-$state = $in['state'] ?? null;
+$state = is_array($in['patch'] ?? null) ? $in['patch'] : ($in['state'] ?? null);
 if (!is_array($state)) json_err('Estado inválido.');
 
 $stOld = $pdo->prepare('SELECT json, updated_at FROM app_state WHERE tenant_id = ?');
@@ -55,13 +73,22 @@ $now = gmdate('c');
 $old = stamp_missing_updated_at($old, is_array($oldRow) ? (string)($oldRow['updated_at'] ?? $now) : $now);
 $antesDiff = $old;
 $state = merge_state($old, $state);
+if (($sess['papel'] ?? '') !== 'admin' && tenant_plano_vencido($pdo, $tenantId)) {
+  $state = preservar_chamada_financeiro($old, $state);
+}
 
-$limite = limite_pessoas_igreja();
+$limite = limite_pessoas_igreja($tenantId);
 $nPessoas = 0;
 foreach (($state['pessoas'] ?? []) as $p) {
   if (is_array($p) && !empty($p['id'])) $nPessoas++;
 }
 if ($nPessoas > $limite) json_err('Limite de ' . $limite . ' cadastros de pessoas por igreja.', 403);
+$limiteEsc = limite_escolas_igreja($tenantId);
+$nEsc = 0;
+foreach (($state['escolas'] ?? []) as $e) {
+  if (is_array($e) && !empty($e['id'])) $nEsc++;
+}
+if ($nEsc > $limiteEsc) json_err('Seu plano permite ' . $limiteEsc . ' congregação(ões). Migre para o plano Igreja para cadastrar filiais.', 403);
 
 $state['sessaoId'] = $sess['user_id'];
 $state = reconciliar_acessos($state);

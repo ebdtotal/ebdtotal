@@ -350,6 +350,7 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
     usuariosRemovidos: [],
     lancamentosRemovidos: [],
     avisosRemovidos: [],
+    alertasExcluidos: [],
     eventosRemovidos: [],
     setoresRemovidos: [],
     cursosRemovidos: [],

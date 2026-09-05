@@ -25,9 +25,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
     <div className="app-navy flex h-full min-h-[var(--app-min-h,100dvh)] flex-col pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-navy pt-[env(safe-area-inset-top)] text-white lg:flex">
         <div className="px-4 py-5">
-          <div className="rounded-xl bg-white px-3 py-3">
-            <Logo variant="full" className="mx-auto h-16 w-auto" />
-          </div>
+          <Logo variant="full" className="mx-auto h-16 w-auto" />
           <div className="mt-2 px-1 text-[11px] text-white/60">Portal do Aluno</div>
         </div>
         <nav className="flex-1 space-y-1 px-3">
@@ -55,9 +53,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
           <button className="absolute inset-0 bg-navy/50" aria-label="Fechar" onClick={() => setOpen(false)} />
           <aside className="relative z-10 flex h-full w-[78%] max-w-64 flex-col bg-navy pt-[max(env(safe-area-inset-top),var(--safe-top,0px))] text-white">
             <div className="px-4 py-5">
-              <div className="rounded-xl bg-white px-3 py-3">
-                <Logo variant="full" className="mx-auto h-14 w-auto" />
-              </div>
+              <Logo variant="full" className="mx-auto h-14 w-auto" />
             </div>
             {NAV.map((item) => (
               <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)} className="px-5 py-2 text-sm">

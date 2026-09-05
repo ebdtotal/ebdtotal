@@ -18,6 +18,12 @@ ios_distribution_private_key
 *.mobileprovision
 ios/App/build
 store/preview/logo.png
+public/api/data/pagamento.local.php
+api/data/pagamento.local.php
+public/api/data/backups/*.sqlite
+public/api/data/backups/*.sql
+api/data/backups/*.sqlite
+api/data/backups/*.sql
 
 # Editor directories and files
 .vscode/*

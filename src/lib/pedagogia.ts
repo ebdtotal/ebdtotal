@@ -224,6 +224,7 @@ export function hidratarEstado(state: AppState): AppState {
     usuariosRemovidos: state.usuariosRemovidos ?? [],
     lancamentosRemovidos: state.lancamentosRemovidos ?? [],
     avisosRemovidos: state.avisosRemovidos ?? [],
+    alertasExcluidos: state.alertasExcluidos ?? [],
     eventosRemovidos: state.eventosRemovidos ?? [],
     setoresRemovidos: state.setoresRemovidos ?? [],
     cursosRemovidos: state.cursosRemovidos ?? [],

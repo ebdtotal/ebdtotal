@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, Link } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { PortalLayout } from './components/PortalLayout'
 import { ehAppNativo } from './lib/native'
-import { destinoInicial, perfilDe, rotaPermitida } from './lib/perfis'
+import { destinoInicial, perfilDe, rotaMaster, rotaPermitida } from './lib/perfis'
+import { assinaturaVigente, papelRestritoSemAssinatura, rotaLiberadaNoPlano } from './lib/planos'
 import { useStore } from './lib/store'
 import { AlertasPage } from './pages/AlertasPage'
 import { AssinePage, AssineRetornoPage } from './pages/AssinePage'
@@ -26,6 +27,8 @@ import { PrivacidadePage, TermosPage } from './pages/LegalPage'
 import { LicaoPage } from './pages/LicaoPage'
 import { LoginPage } from './pages/LoginPage'
 import { MasterPage } from './pages/MasterPage'
+import { MasterAssinaturasPage } from './pages/MasterAssinaturasPage'
+import { MasterDemosPage } from './pages/MasterDemosPage'
 import { MetasPage } from './pages/MetasPage'
 import { PainelPage } from './pages/PainelPage'
 import { PortalAlunoPage } from './pages/PortalAlunoPage'
@@ -39,27 +42,80 @@ import { ResumosPage } from './pages/ResumosPage'
 import { TurmasPage } from './pages/TurmasPage'
 
 function Staff({ children }: { children: ReactNode }) {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   const location = useLocation()
   if (!usuario) return <Navigate to="/login" replace />
+  if (usuario.papel === 'admin') {
+    if (!rotaMaster(location.pathname)) return <Navigate to="/master" replace />
+    return <AppLayout>{children}</AppLayout>
+  }
   const perfil = perfilDe(usuario.papel)
   if (perfil === 'aluno') return <Navigate to="/portal" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) {
+    return <AssinaturaBloqueada />
+  }
   if (!rotaPermitida(perfil, location.pathname)) {
     return <Navigate to={destinoInicial(usuario.papel)} replace />
+  }
+  if (!rotaLiberadaNoPlano(igreja?.plano, location.pathname)) {
+    return (
+      <AppLayout>
+        <RecursoDoPlano />
+      </AppLayout>
+    )
   }
   return <AppLayout>{children}</AppLayout>
 }
 
+function AssinaturaBloqueada() {
+  const { logout, igreja } = useStore()
+  return (
+    <div className="flex min-h-[var(--app-min-h,100dvh)] items-center justify-center bg-page px-4">
+      <div className="max-w-md rounded-2xl bg-white p-6 shadow-sm">
+        <h1 className="text-xl font-semibold text-ink">Assinatura encerrada</h1>
+        <p className="mt-2 text-sm text-muted">
+          O acesso de alunos e professores da {igreja?.nome || 'igreja'} está bloqueado porque o plano não está ativo.
+          Peça à sede para renovar.
+        </p>
+        <button
+          type="button"
+          className="mt-4 inline-flex rounded-xl bg-navy px-4 py-2.5 text-sm font-semibold text-white"
+          onClick={() => logout()}
+        >
+          Sair
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RecursoDoPlano() {
+  return (
+    <div className="max-w-lg rounded-xl bg-white p-6 shadow-sm">
+      <h1 className="text-xl font-semibold text-ink">Disponível no plano Igreja</h1>
+      <p className="mt-2 text-sm text-muted">
+        Esta tela faz parte do plano Igreja (filiais, financeiro, certificados, painel e formação). No Essencial o
+        domingo continua: chamada, cadastros, relatório, lição e avisos.
+      </p>
+      <Link to="/conta" className="mt-4 inline-flex rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy">
+        Ver meu plano e migrar
+      </Link>
+    </div>
+  )
+}
+
 function Aluno({ children }: { children: ReactNode }) {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
   if (perfilDe(usuario.papel) !== 'aluno') return <Navigate to={destinoInicial(usuario.papel)} replace />
+  if (!assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   return <PortalLayout>{children}</PortalLayout>
 }
 
 function SharedCalendario() {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   if (perfilDe(usuario.papel) === 'aluno') {
     return (
       <PortalLayout>
@@ -75,8 +131,9 @@ function SharedCalendario() {
 }
 
 function ContaGate() {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   if (perfilDe(usuario.papel) === 'aluno') {
     return (
       <PortalLayout>
@@ -92,8 +149,9 @@ function ContaGate() {
 }
 
 function SharedLicao() {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   if (perfilDe(usuario.papel) === 'aluno') {
     return (
       <PortalLayout>
@@ -109,8 +167,9 @@ function SharedLicao() {
 }
 
 function SharedAvisos() {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   if (perfilDe(usuario.papel) === 'aluno') {
     return (
       <PortalLayout>
@@ -126,10 +185,19 @@ function SharedAvisos() {
 }
 
 function SharedCertificados() {
-  const { usuario } = useStore()
+  const { usuario, igreja } = useStore()
   if (!usuario) return <Navigate to="/login" replace />
+  if (papelRestritoSemAssinatura(usuario.papel) && !assinaturaVigente(igreja)) return <AssinaturaBloqueada />
   const perfil = perfilDe(usuario.papel)
   if (perfil === 'secretario') return <Navigate to={destinoInicial(usuario.papel)} replace />
+  if (usuario.papel !== 'admin' && !rotaLiberadaNoPlano(igreja?.plano, '/certificados')) {
+    if (perfil === 'aluno') return <Navigate to="/portal" replace />
+    return (
+      <AppLayout>
+        <RecursoDoPlano />
+      </AppLayout>
+    )
+  }
   if (perfil === 'aluno') {
     return (
       <PortalLayout>
@@ -183,6 +251,8 @@ export default function App() {
       <Route path="/configuracoes" element={<Staff><ConfiguracoesPage /></Staff>} />
       <Route path="/conta" element={<ContaGate />} />
       <Route path="/master" element={<Staff><MasterPage /></Staff>} />
+      <Route path="/master/assinaturas" element={<Staff><MasterAssinaturasPage /></Staff>} />
+      <Route path="/master/demos" element={<Staff><MasterDemosPage /></Staff>} />
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
   )

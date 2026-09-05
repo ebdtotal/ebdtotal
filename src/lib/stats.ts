@@ -82,6 +82,30 @@ export function aniversariantes(pessoas: Pessoa[], dias = 7) {
     .sort((a, b) => a.quando.localeCompare(b.quando))
 }
 
+export function chaveAlertaAusente(pessoaId: string) {
+  return `ausente:${pessoaId}`
+}
+
+export function chaveAlertaAniversario(pessoaId: string, quando: string) {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const [mm, dd] = quando.split('-').map(Number)
+  const y = now.getFullYear()
+  const este = Number.isFinite(mm) && Number.isFinite(dd) ? new Date(y, mm - 1, dd) : now
+  este.setHours(0, 0, 0, 0)
+  return `aniversario:${pessoaId}:${este < now ? y + 1 : y}`
+}
+
+export function chaveAlertaFaixa(pessoaId: string, faixaNova: string) {
+  return `faixa:${pessoaId}:${faixaNova}`
+}
+
+export function semAlertasExcluidos<T>(itens: T[], chaveDe: (item: T) => string, excluidos?: string[]): T[] {
+  if (!excluidos?.length) return itens
+  const set = new Set(excluidos)
+  return itens.filter((item) => !set.has(chaveDe(item)))
+}
+
 export function relatorioPorAula(
   state: AppState,
   escolaId: string,

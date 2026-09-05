@@ -8,7 +8,9 @@ import { STATUS_ESCOLA, type Escola, type StatusEscola } from '../lib/types'
 import { matches, uid } from '../lib/utils'
 
 export function EscolasPage() {
-  const { escolasVisiveis, saveEscola, importarEscolas, removeEscola, podeVerTudo } = useStore()
+  const { escolasVisiveis, saveEscola, importarEscolas, removeEscola, podeVerTudo, limiteEscolas, state } = useStore()
+  const noLimite = state.escolas.length >= limiteEscolas
+  const vagasEscolas = Math.max(0, limiteEscolas - state.escolas.length)
   const [busca, setBusca] = useState('')
   const [limite, setLimite] = useState('Todos')
   const [editing, setEditing] = useState<Escola | null>(null)
@@ -45,9 +47,12 @@ export function EscolasPage() {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Escolas</h1>
-          <p className="text-sm text-muted">Lista de escolas associadas ou esperando aprovação</p>
+          <p className="text-sm text-muted">
+            Lista de escolas associadas ou esperando aprovação
+            {limiteEscolas < 9999 ? ` · ${state.escolas.length} de ${limiteEscolas} congregação(ões) do plano` : ''}
+          </p>
         </div>
-        {podeVerTudo ? (
+        {podeVerTudo && !noLimite ? (
           <PrimaryButton
             onClick={() =>
               setEditing({
@@ -69,7 +74,14 @@ export function EscolasPage() {
         ) : null}
       </div>
 
-      {podeVerTudo ? (
+      {noLimite ? (
+        <p className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          O plano atual permite {limiteEscolas} congregação. Para cadastrar filiais, migre para o plano Igreja em Minha
+          conta.
+        </p>
+      ) : null}
+
+      {podeVerTudo && !noLimite ? (
         <ImportacaoExcel
           arquivoModelo="modelo-escolas-ebd"
           colunas={['Nome', 'Setor', 'Bairro', 'Regional', 'Responsável', 'Status']}
@@ -109,8 +121,12 @@ export function EscolasPage() {
                 inativos: 0,
               })
             })
-            importarEscolas(novas)
-            return { ok: novas.length, erros }
+            const cabem = novas.slice(0, vagasEscolas)
+            if (novas.length > cabem.length) {
+              erros.push(`O plano permite ${limiteEscolas} congregação(ões). Importamos ${cabem.length} de ${novas.length}.`)
+            }
+            importarEscolas(cabem)
+            return { ok: cabem.length, erros }
           }}
         />
       ) : null}

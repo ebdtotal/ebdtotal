@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom'
 import { catalogoDeLicao, licaoDaData } from '../lib/acompanhamento'
 import { ATALHOS, ROTULO_PERFIL, perfilDe } from '../lib/perfis'
+import { rotaLiberadaNoPlano } from '../lib/planos'
 import { useStore } from '../lib/store'
 import { domingoDaAula, toISODate } from '../lib/utils'
+import { AvisoRenovacao } from '../components/AvisoRenovacao'
 
 export function InicioPage() {
-  const { usuario, escolasVisiveis, state } = useStore()
+  const { usuario, escolasVisiveis, state, igreja } = useStore()
   const perfil = perfilDe(usuario?.papel)
   if (perfil === 'aluno') return null
-  const atalhos = ATALHOS[perfil]
+  const atalhos = ATALHOS[perfil].filter((a) => rotaLiberadaNoPlano(igreja?.plano, a.to))
   const escola = escolasVisiveis[0]
   const avisos = [...(state.avisos ?? [])]
     .filter((a) => !a.escolaId || a.escolaId === usuario?.escolaId)
@@ -29,6 +31,8 @@ export function InicioPage() {
       </p>
 
       {perfil === 'professor' ? <LicaoDaSemana /> : null}
+
+      <AvisoRenovacao />
 
       {avisos.length > 0 ? (
         <section className="mb-5 rounded-xl bg-white p-5 shadow-sm">

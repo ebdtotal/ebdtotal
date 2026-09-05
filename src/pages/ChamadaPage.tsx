@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AulaDateSelect } from '../components/AulaDateSelect'
 import { GhostButton, PrimaryButton, inputClass, roundBtnClass, stepBtnClass } from '../components/ui'
+import { EVENTO_SYNC } from '../lib/native'
 import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
@@ -26,7 +27,7 @@ const acoesChamadaClass =
   'fixed inset-x-0 z-20 flex flex-col gap-2 border-t-2 border-gold bg-navy px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none'
 
 export function ChamadaPage() {
-  const { state, escolasVisiveis, saveRelatorio, usuario, podeVerTudo, ehProfessor } = useStore()
+  const { state, escolasVisiveis, saveRelatorio, usuario, podeVerTudo, ehProfessor, bloqueiaChamadaEFinanceiro: planoTravado } = useStore()
   const ehSuper = perfilDe(usuario?.papel) === 'superintendente'
   const navigate = useNavigate()
   const location = useLocation()
@@ -50,6 +51,10 @@ export function ChamadaPage() {
   const [bibliasProf, setBibliasProf] = useState(0)
   const [revistasProf, setRevistasProf] = useState(0)
   const [ofertaProf, setOfertaProf] = useState(0)
+
+  useEffect(() => {
+    window.dispatchEvent(new Event(EVENTO_SYNC))
+  }, [])
 
   const chave = `${escolaId}_${data}`
   const modoProfessores = turma === CHAMADA_PROFESSORES && ehSuper
@@ -123,7 +128,17 @@ export function ChamadaPage() {
     })
   const existente = state.relatorios.find((r) => r.escolaId === escolaId && r.data === data)
   const finalizado = existente?.finalizado ?? false
-  const bloqueado = finalizado && !editando
+  const bloqueado = planoTravado || (finalizado && !editando)
+  const avisoConsulta = planoTravado ? (
+    <p className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      Plano vencido: a chamada está só para consulta. Relatórios já lançados continuam visíveis.
+    </p>
+  ) : null
+  const acoesConsulta = planoTravado ? (
+    <p className="text-center text-sm font-medium text-amber-100 lg:text-amber-800">
+      Só consulta — renove o plano para lançar presença.
+    </p>
+  ) : null
   const escola = state.escolas.find((e) => e.id === escolaId)
   const presentesProf = alunos.filter((a) => professores.some((p) => p.id === a.pessoaId) && a.presente).length
 
@@ -305,6 +320,7 @@ export function ChamadaPage() {
             ? 'O superintendente lança a chamada de cada classe e a chamada dos professores.'
             : 'Presença das turmas da congregação.'}
         </p>
+        {avisoConsulta}
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium">Data da aula</span>
@@ -409,7 +425,8 @@ export function ChamadaPage() {
           <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
         </div>
 
-        {finalizado && !editando ? (
+        {avisoConsulta}
+        {planoTravado ? null : finalizado && !editando ? (
           <div className="mb-3 flex flex-col gap-2 rounded-xl bg-emerald-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-emerald-800">Relatório finalizado. Você pode corrigir a chamada.</p>
             <PrimaryButton className="shrink-0" onClick={() => setEditando(true)}>
@@ -497,7 +514,9 @@ export function ChamadaPage() {
           />
         </section>
 
-        {bloqueado ? (
+        {planoTravado ? (
+          <div className={acoesChamadaClass}>{acoesConsulta}</div>
+        ) : bloqueado ? (
           <div className={acoesChamadaClass}>
             <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
@@ -563,7 +582,8 @@ export function ChamadaPage() {
         <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
       </div>
 
-      {finalizado && !editando ? (
+      {avisoConsulta}
+      {planoTravado ? null : finalizado && !editando ? (
         <div className="mb-3 flex flex-col gap-2 rounded-xl bg-emerald-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-emerald-800">Relatório finalizado. Você pode corrigir a chamada.</p>
           <PrimaryButton className="shrink-0" onClick={() => setEditando(true)}>
@@ -704,7 +724,9 @@ export function ChamadaPage() {
       </section>
 
       <div className={acoesChamadaClass}>
-        {bloqueado ? (
+        {planoTravado ? (
+          acoesConsulta
+        ) : bloqueado ? (
           <>
             <span className="text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Relatório finalizado</span>
             <PrimaryButton className="w-full" onClick={() => setEditando(true)}>

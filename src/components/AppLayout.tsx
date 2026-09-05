@@ -27,10 +27,11 @@ import {
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { mobileDoPerfil, navDoPerfil, perfilDe, ROTULO_PERFIL } from '../lib/perfis'
-import { useStore } from '../lib/store'
-import { aniversariantes, ausentesRecentes } from '../lib/stats'
+import { mobileDoPerfil, navDoPerfil, NAV_MASTER, perfilDe, ROTULO_PERFIL } from '../lib/perfis'
+import { avisoRenovacaoPlano, diasParaVencer, planoVencido, recursoDaRota, rotuloProduto } from '../lib/planos'
+import { aniversariantes, ausentesRecentes, chaveAlertaAniversario, chaveAlertaAusente, chaveAlertaFaixa, semAlertasExcluidos } from '../lib/stats'
 import { alertasMudancaFaixa } from '../lib/faixa'
+import { useStore } from '../lib/store'
 import { whatsappUrl } from '../lib/utils'
 import { Logo } from './Logo'
 import { TemaToggle } from './TemaToggle'
@@ -60,34 +61,52 @@ const ICONS: Record<string, LucideIcon> = {
   '/configuracoes': Settings,
   '/conta': KeyRound,
   '/master': Building2,
+  '/master/assinaturas': Wallet,
+  '/master/demos': CalendarRange,
   '/portal': Home,
   '/portal/avaliacao': ClipboardList,
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { usuario, logout, state, pessoasVisiveis, escolasVisiveis, podeVerTudo } = useStore()
+  const { usuario, logout, state, pessoasVisiveis, escolasVisiveis, podeVerTudo, temRecurso, igreja } = useStore()
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const perfil = perfilDe(usuario?.papel)
-  const base = navDoPerfil(perfil).filter((i) => i.to !== '/configuracoes' || podeVerTudo)
-  const nav = usuario?.papel === 'admin' ? [{ to: '/master', label: 'Igrejas' }, ...base] : base
-  const mobile = mobileDoPerfil(perfil)
+  const base = navDoPerfil(perfil)
+    .filter((i) => i.to !== '/configuracoes' || podeVerTudo)
+    .filter((i) => {
+      const rec = recursoDaRota(i.to)
+      return !rec || temRecurso(rec)
+    })
+  const nav = usuario?.papel === 'admin' ? NAV_MASTER : base
+  const mobile = usuario?.papel === 'admin' ? NAV_MASTER : mobileDoPerfil(perfil).filter((i) => nav.some((n) => n.to === i.to))
   const ids = useMemo(() => new Set(escolasVisiveis.map((e) => e.id)), [escolasVisiveis])
+  const excluidos = state.alertasExcluidos
   const nFaixa =
     perfil === 'professor' || perfil === 'superintendente'
-      ? alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? []).length
+      ? semAlertasExcluidos(
+          alertasMudancaFaixa(pessoasVisiveis, state.turmas ?? []),
+          (a) => chaveAlertaFaixa(a.pessoa.id, a.faixaNova),
+          excluidos,
+        ).length
       : 0
   const nAlertas =
-    ausentesRecentes(state, ids).length + aniversariantes(pessoasVisiveis, 7).length + nFaixa
+    semAlertasExcluidos(ausentesRecentes(state, ids), (l) => chaveAlertaAusente(l.pessoa.id), excluidos).length +
+    semAlertasExcluidos(
+      aniversariantes(pessoasVisiveis, 7),
+      (n) => chaveAlertaAniversario(n.pessoa.id, n.quando),
+      excluidos,
+    ).length +
+    nFaixa
 
   return (
     <div className="app-navy flex h-full min-h-[var(--app-min-h,100dvh)] flex-col pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-navy pt-[env(safe-area-inset-top)] text-white lg:flex">
         <div className="px-4 py-5">
-          <div className="rounded-xl bg-white px-3 py-3">
-            <Logo variant="full" className="mx-auto h-16 w-auto" />
+          <Logo variant="full" className="mx-auto h-16 w-auto" />
+          <div className="mt-2 px-1 text-[11px] text-white/60">
+            {usuario?.papel === 'admin' ? 'Painel master' : `App ${ROTULO_PERFIL[perfil]}`}
           </div>
-          <div className="mt-2 px-1 text-[11px] text-white/60">App {ROTULO_PERFIL[perfil]}</div>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3">
           {nav.map((item) => {
@@ -135,9 +154,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <button className="absolute inset-0 bg-navy/50" aria-label="Fechar menu" onClick={() => setOpen(false)} />
           <aside className="relative z-10 flex h-full w-[78%] max-w-64 flex-col bg-navy pt-[max(env(safe-area-inset-top),var(--safe-top,0px))] text-white">
             <div className="px-4 py-5">
-              <div className="rounded-xl bg-white px-3 py-3">
-                <Logo variant="full" className="mx-auto h-14 w-auto" />
-              </div>
+              <Logo variant="full" className="mx-auto h-14 w-auto" />
               <div className="mt-2 text-[11px] text-white/60">App {ROTULO_PERFIL[perfil]}</div>
             </div>
             <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-6">
@@ -203,7 +220,25 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </NavLink>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8 lg:pb-10">{children}</main>
+        <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8 lg:pb-10">
+          {usuario?.papel !== 'admin' && igreja && planoVencido(igreja.validoAte) ? (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              O plano {rotuloProduto(igreja.plano)} venceu. Chamada e lançamentos financeiros estão bloqueados.
+              Consulta, relatórios e cadastros continuam disponíveis.{' '}
+              <NavLink to="/conta" className="font-semibold underline">
+                Minha conta
+              </NavLink>
+            </div>
+          ) : usuario?.papel !== 'admin' && igreja && (diasParaVencer(igreja.validoAte) ?? 99) <= 15 && (diasParaVencer(igreja.validoAte) ?? -1) >= 0 ? (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {avisoRenovacaoPlano(igreja)?.texto}{' '}
+              <NavLink to="/conta" className="font-semibold underline">
+                Minha conta
+              </NavLink>
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
 
       <a

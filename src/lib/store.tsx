@@ -18,7 +18,7 @@ import {
   setApiToken,
 } from './api'
 import { acharVarianteTurma, catalogoDeLicao, chaveAula, deduplicarLicoes, ehLicaoGeral, idCatalogoPadrao } from './acompanhamento'
-import { LIMITE_PESSOAS_IGREJA } from './planos'
+import { bloqueiaChamadaEFinanceiro, entitlementsDe, type IgrejaSessao, type RecursoId } from './planos'
 import { ehAppNativo, EVENTO_SYNC } from './native'
 import {
   CAT_OFERTA_EBD_ID,
@@ -29,6 +29,7 @@ import {
   idLancRevista,
   revistaGeraReceita,
 } from './ebdSetores'
+import { perfilDe } from './perfis'
 import { catalogoCresceu, hidratarEstado } from './pedagogia'
 import type {
   AppState,
@@ -54,6 +55,27 @@ import type {
 import { formatDateBR, senhaGerada, toISODate, uid, usernameFromNome, whatsappSuporte } from './utils'
 
 const STORAGE_KEY = 'portal-ebd-v7'
+const IGREJA_KEY = 'ebd-igreja'
+
+function loadIgreja(): IgrejaSessao | null {
+  try {
+    const raw = localStorage.getItem(IGREJA_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as IgrejaSessao
+    return parsed?.id ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function persistIgreja(igreja: IgrejaSessao | null) {
+  try {
+    if (igreja) localStorage.setItem(IGREJA_KEY, JSON.stringify(igreja))
+    else localStorage.removeItem(IGREJA_KEY)
+  } catch {
+    /* storage cheio ou privado */
+  }
+}
 
 function loadState(): AppState {
   try {
@@ -84,6 +106,7 @@ function loadState(): AppState {
       usuariosRemovidos: parsed.usuariosRemovidos ?? seed.usuariosRemovidos,
       lancamentosRemovidos: parsed.lancamentosRemovidos ?? seed.lancamentosRemovidos,
       avisosRemovidos: parsed.avisosRemovidos ?? seed.avisosRemovidos,
+      alertasExcluidos: parsed.alertasExcluidos ?? seed.alertasExcluidos,
       eventosRemovidos: parsed.eventosRemovidos ?? seed.eventosRemovidos,
       setoresRemovidos: parsed.setoresRemovidos ?? seed.setoresRemovidos,
       cursosRemovidos: parsed.cursosRemovidos ?? seed.cursosRemovidos,
@@ -110,6 +133,7 @@ let saveRetries = 0
 let lastRemoteAt = ''
 let syncGeracao = 0
 let latestToSave: AppState | null = null
+let latestRecorte: Record<string, unknown> | 'full' | null = null
 let canalSync: BroadcastChannel | null = null
 try {
   canalSync = new BroadcastChannel('ebd-sync')
@@ -121,6 +145,35 @@ function agoraIso() {
   return new Date().toISOString()
 }
 
+function mergeListaPorId(a: unknown, b: unknown): unknown[] {
+  const map = new Map<string, Record<string, unknown>>()
+  for (const lista of [a, b]) {
+    if (!Array.isArray(lista)) continue
+    for (const item of lista) {
+      if (!item || typeof item !== 'object' || !('id' in item)) continue
+      const id = String((item as { id: unknown }).id ?? '')
+      if (id) map.set(id, item as Record<string, unknown>)
+    }
+  }
+  return [...map.values()]
+}
+
+function misturarRecorte(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) {
+    if (Array.isArray(v) && Array.isArray(out[k])) {
+      if (k.endsWith('Removidas') || k.endsWith('Removidos')) {
+        out[k] = [...new Set([...(out[k] as string[]), ...(v as string[])])]
+      } else {
+        out[k] = mergeListaPorId(out[k], v)
+      }
+    } else {
+      out[k] = v
+    }
+  }
+  return out
+}
+
 function cacheLocal(state: AppState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -129,18 +182,26 @@ function cacheLocal(state: AppState) {
   }
 }
 
-function persist(state: AppState, imediato = false) {
+function persist(state: AppState, imediato = false, recorte?: Record<string, unknown>) {
   latestToSave = state
   cacheLocal(state)
+  if (!recorte) latestRecorte = 'full'
+  else if (latestRecorte !== 'full') {
+    latestRecorte = latestRecorte ? misturarRecorte(latestRecorte, recorte) : recorte
+  }
   if (!apiToken()) return
   if (saveTimer) clearTimeout(saveTimer)
   const enviar = () => {
     saveTimer = null
     const payload = latestToSave
     if (!payload) return
+    const rec = latestRecorte
+    latestRecorte = null
     savePending += 1
     syncGeracao += 1
-    void apiSaveState(payload)
+    const req =
+      rec && rec !== 'full' ? apiSaveState(rec, true) : apiSaveState(payload)
+    void req
       .then((res) => {
         saveRetries = 0
         if (res.updatedAt) lastRemoteAt = res.updatedAt
@@ -154,7 +215,10 @@ function persist(state: AppState, imediato = false) {
         saveRetries += 1
         const retry = latestToSave
         if (saveRetries <= 3 && retry && apiToken()) {
-          window.setTimeout(() => persist(retry, true), 1500)
+          window.setTimeout(
+            () => persist(retry, true, rec && rec !== 'full' ? rec : undefined),
+            1500,
+          )
         }
       })
       .finally(() => {
@@ -171,21 +235,30 @@ function persist(state: AppState, imediato = false) {
 
 export type AcessoApp = { username: string; senha: string; email?: string }
 
-const SUFIXO_PAPEL = { professor: 'prof', aluno: 'aluno', superintendente: 'super', secretario: 'sec' } as const
-
-function usernameUnico(usuarios: Usuario[], base: string, exceptId?: string): string {
-  let username = base
-  let n = 1
-  while (usuarios.some((u) => u.id !== exceptId && u.username.toLowerCase() === username.toLowerCase())) {
-    n += 1
-    username = `${base}${n}`
-  }
-  return username
+function usernameOcupado(usuarios: Usuario[], username: string, exceptId?: string) {
+  return usuarios.some((u) => u.id !== exceptId && u.username.toLowerCase() === username.toLowerCase())
 }
 
-export function sugestaoUsername(nome: string, papel: keyof typeof SUFIXO_PAPEL, usuarios: Usuario[], exceptId?: string) {
-  const base = `${usernameFromNome(nome)}.${SUFIXO_PAPEL[papel]}`
-  return usernameUnico(usuarios, base, exceptId)
+function usernameUnico(usuarios: Usuario[], proposto: string, exceptId?: string): string {
+  const nome = proposto.trim().toLowerCase() || 'user'
+  if (/^[a-z][a-z0-9]*\d+$/.test(nome) && !usernameOcupado(usuarios, nome, exceptId)) return nome
+  const m = nome.match(/^([a-z][a-z0-9]*?)(\d+)?$/)
+  const base = m?.[1] || nome.replace(/\d+$/, '') || 'user'
+  let n = 1
+  while (usernameOcupado(usuarios, `${base}${n}`, exceptId)) n += 1
+  return `${base}${n}`
+}
+
+export function sugestaoUsername(nome: string, usuarios: Usuario[], exceptId?: string) {
+  return usernameUnico(usuarios, usernameFromNome(nome), exceptId)
+}
+
+export function ehLoginAutomatico(username: string, nome: string) {
+  const user = username.trim().toLowerCase()
+  const base = usernameFromNome(nome)
+  if (!user || !base) return false
+  if (user === base || new RegExp(`^${base}\\d+$`).test(user)) return true
+  return ['.aluno', '.prof', '.super', '.sec'].some((s) => user.endsWith(s))
 }
 
 function papelDaPessoa(tipo: Pessoa['tipo']): 'professor' | 'aluno' | 'superintendente' | 'secretario' | null {
@@ -230,7 +303,7 @@ function garantirLogin(
   }
   const username = usernameInformado
     ? usernameUnico(usuarios, usernameInformado)
-    : sugestaoUsername(pessoa.nome, papel, usuarios)
+    : sugestaoUsername(pessoa.nome, usuarios)
   return [
     ...usuarios,
     {
@@ -253,13 +326,16 @@ function garantirTurma(turmas: TurmaCadastro[], pessoa: Pessoa): TurmaCadastro[]
   if (turmas.some((t) => t.escolaId === pessoa.escolaId && t.nome.toLowerCase() === nome.toLowerCase())) return turmas
   return [
     ...turmas,
-    { id: uid('t'), nome, escolaId: pessoa.escolaId, faixaEtaria: pessoa.faixaEtaria },
+    { id: uid('t'), nome, escolaId: pessoa.escolaId, faixaEtaria: pessoa.faixaEtaria, updatedAt: agoraIso() },
   ]
 }
 
 function bump(escola: Escola, status: Pessoa['status'], delta: number): Escola {
-  if (status === 'Ativo') return { ...escola, ativos: Math.max(0, escola.ativos + delta) }
-  return { ...escola, inativos: Math.max(0, escola.inativos + delta) }
+  const next =
+    status === 'Ativo'
+      ? { ...escola, ativos: Math.max(0, escola.ativos + delta) }
+      : { ...escola, inativos: Math.max(0, escola.inativos + delta) }
+  return { ...next, updatedAt: agoraIso() }
 }
 
 function marcarRemovidos(lista: string[] | undefined, ids: string[]): string[] {
@@ -344,6 +420,7 @@ type StoreValue = {
   removeLicao: (id: string) => void
   saveAviso: (aviso: Aviso) => void
   removeAviso: (id: string) => void
+  excluirAlerta: (chave: string) => void
   saveCertificado: (certificado: Certificado) => void
   removeCertificado: (id: string) => void
   saveModeloCertificado: (modelo: ModeloCertificado) => void
@@ -366,18 +443,31 @@ type StoreValue = {
   ehProfessor: boolean
   ehAluno: boolean
   ehSecretario: boolean
+  igreja: IgrejaSessao | null
+  bloqueiaChamadaEFinanceiro: boolean
+  limitePessoas: number
+  limiteEscolas: number
+  temRecurso: (recurso: RecursoId) => boolean
+  setIgreja: (igreja: IgrejaSessao | null) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(loadState)
+  const [igreja, setIgrejaRaw] = useState<IgrejaSessao | null>(loadIgreja)
+  const setIgreja = useCallback((next: IgrejaSessao | null) => {
+    persistIgreja(next)
+    setIgrejaRaw(next)
+  }, [])
 
   useEffect(() => {
     function aplicarRemoto(remote: Awaited<ReturnType<typeof apiGetState>>) {
+      if (remote.notModified) return
       if (saveTimer || savePending) return
       if (remote.updatedAt && lastRemoteAt && remote.updatedAt <= lastRemoteAt) return
       if (remote.updatedAt) lastRemoteAt = remote.updatedAt
+      if ('igreja' in remote && remote.igreja) setIgreja(remote.igreja)
       const raw = {
         ...createEmptyIgrejaState(),
         ...((remote.state as AppState | null) ?? {}),
@@ -393,12 +483,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     function puxar() {
       if (!apiToken() || saveTimer || savePending) return
       const geracao = syncGeracao
-      void apiGetState()
+      void apiGetState(lastRemoteAt || undefined)
         .then((remote) => {
           if (geracao !== syncGeracao) return
           aplicarRemoto(remote)
         })
-        .catch(() => {})
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : ''
+          if (!/venceu|assinatura|suspensa/i.test(msg)) return
+          setIgrejaRaw((prev) => {
+            if (!prev) return prev
+            const next: IgrejaSessao = {
+              ...prev,
+              status: /suspensa/i.test(msg) ? 'suspensa' : prev.status,
+              validoAte: /venceu|assinatura/i.test(msg) ? '2000-01-01T00:00:00.000Z' : prev.validoAte,
+            }
+            persistIgreja(next)
+            return next
+          })
+        })
     }
     function aoVisivel() {
       if (document.visibilityState === 'visible') puxar()
@@ -407,7 +510,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (ev.data === 'saved') puxar()
     }
     puxar()
-    const t = window.setInterval(puxar, 2000)
+    const t = window.setInterval(puxar, 15_000)
     window.addEventListener(EVENTO_SYNC, puxar)
     document.addEventListener('visibilitychange', aoVisivel)
     canalSync?.addEventListener('message', aoCanal)
@@ -419,10 +522,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const commit = useCallback((updater: (prev: AppState) => AppState, imediato = false) => {
+  const commit = useCallback((
+    updater: (prev: AppState) => AppState,
+    imediato = false,
+    recorte?: Record<string, unknown> | ((next: AppState) => Record<string, unknown>),
+  ) => {
     setState((prev) => {
       const next = updater(prev)
-      persist(next, imediato)
+      if (next === prev) return next
+      const slice = typeof recorte === 'function' ? recorte(next) : recorte
+      persist(next, imediato, slice)
       return next
     })
   }, [])
@@ -466,6 +575,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const res = await apiLogin(username, senha)
       if (!res?.token || !res.usuario?.id) return 'Falha na conexão com o servidor.'
       setApiToken(res.token)
+      if (res.igreja) setIgreja(res.igreja)
       const remote = await apiGetState()
       let next = hidratarEstado({
         ...createEmptyIgrejaState(),
@@ -493,6 +603,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       next = hidratarEstado({ ...next, usuarios, sessaoId: u.id })
       persist(next)
       setState(next)
+      if (!res.igreja && 'igreja' in remote && remote.igreja) setIgreja(remote.igreja)
       return null
     } catch (err) {
       if (ehAppNativo()) {
@@ -509,6 +620,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     void apiLogout()
+    setIgreja(null)
     commit((prev) => ({ ...prev, sessaoId: null }))
   }, [commit])
 
@@ -528,53 +640,102 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return null
   }, [commit, usuario])
 
+  const bloqueiaOperacao = usuario?.papel !== 'admin' && bloqueiaChamadaEFinanceiro(igreja)
+  const entitlements = useMemo(() => entitlementsDe(igreja?.plano), [igreja])
+  const limitePessoas = entitlements.pessoas
+  const limiteEscolas = entitlements.escolas
+  const temRecurso = useCallback((recurso: RecursoId) => entitlements.recursos.includes(recurso), [entitlements])
+
   const savePessoa = useCallback((pessoa: Pessoa, acesso?: AcessoApp | null) => {
     let erro: string | null = null
-    commit((prev) => {
-      const existe = prev.pessoas.some((p) => p.id === pessoa.id)
-      if (!existe && prev.pessoas.length >= LIMITE_PESSOAS_IGREJA) {
-        erro = `Limite de ${LIMITE_PESSOAS_IGREJA} cadastros de pessoas por igreja.`
-        return prev
-      }
-      return aplicarPessoaNoEstado(prev, pessoa, acesso)
-    }, true)
+    let escolasIds = [pessoa.escolaId]
+    commit(
+      (prev) => {
+        const existe = prev.pessoas.some((p) => p.id === pessoa.id)
+        if (!existe && prev.pessoas.length >= limitePessoas) {
+          erro = `Limite de ${limitePessoas} cadastros de pessoas por igreja.`
+          return prev
+        }
+        const atual = prev.pessoas.find((p) => p.id === pessoa.id)
+        if (atual?.escolaId) escolasIds = [...new Set([pessoa.escolaId, atual.escolaId])]
+        return aplicarPessoaNoEstado(prev, pessoa, acesso)
+      },
+      true,
+      (next) => {
+        const gravar = next.pessoas.find((p) => p.id === pessoa.id)
+        const recorte: Record<string, unknown> = {}
+        if (gravar) recorte.pessoas = [gravar]
+        recorte.escolas = next.escolas.filter((e) => escolasIds.includes(e.id))
+        recorte.usuarios = next.usuarios.filter((u) => u.pessoaId === pessoa.id)
+        recorte.turmas = (next.turmas ?? []).filter(
+          (t) => gravar && t.escolaId === gravar.escolaId && t.nome === gravar.turma,
+        )
+        return recorte
+      },
+    )
     return erro
-  }, [commit])
+  }, [commit, limitePessoas])
 
   const importarPessoas = useCallback((itens: { pessoa: Pessoa; acesso?: AcessoApp | null }[]) => {
     if (!itens.length) return
-    commit((prev) => {
-      const vagas = Math.max(0, LIMITE_PESSOAS_IGREJA - prev.pessoas.length)
-      const ids = new Set(prev.pessoas.map((p) => p.id))
-      const novos = itens.filter((item) => !ids.has(item.pessoa.id)).slice(0, vagas)
-      const edits = itens.filter((item) => ids.has(item.pessoa.id))
-      return [...edits, ...novos].reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev)
-    }, true)
-  }, [commit])
+    const ids = new Set(itens.map((item) => item.pessoa.id))
+    const escolasIds = [...new Set(itens.map((item) => item.pessoa.escolaId))]
+    commit(
+      (prev) => {
+        const vagas = Math.max(0, limitePessoas - prev.pessoas.length)
+        const jaTem = new Set(prev.pessoas.map((p) => p.id))
+        const novos = itens.filter((item) => !jaTem.has(item.pessoa.id)).slice(0, vagas)
+        const edits = itens.filter((item) => jaTem.has(item.pessoa.id))
+        return [...edits, ...novos].reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev)
+      },
+      true,
+      (next) => ({
+        pessoas: next.pessoas.filter((p) => ids.has(p.id)),
+        escolas: next.escolas.filter((e) => escolasIds.includes(e.id)),
+        usuarios: next.usuarios.filter((u) => u.pessoaId && ids.has(u.pessoaId)),
+        turmas: (next.turmas ?? []).filter((t) => escolasIds.includes(t.escolaId)),
+      }),
+    )
+  }, [commit, limitePessoas])
 
   const removePessoa = useCallback((id: string) => {
-    commit((prev) => {
-      const target = prev.pessoas.find((p) => p.id === id)
-      const pessoas = prev.pessoas.filter((p) => p.id !== id)
-      const escolas = target
-        ? prev.escolas.map((e) => (e.id === target.escolaId ? bump(e, target.status, -1) : e))
-        : prev.escolas
-      const usuariosFora = prev.usuarios.filter((u) => u.pessoaId === id).map((u) => u.id)
-      const usuarios = prev.usuarios.filter((u) => u.pessoaId !== id)
-      return {
-        ...prev,
-        pessoas,
-        escolas,
-        usuarios,
-        pessoasRemovidas: marcarRemovidos(prev.pessoasRemovidas, [id]),
-        usuariosRemovidos: marcarRemovidos(prev.usuariosRemovidos, usuariosFora),
-      }
-    }, true)
+    let escolaId = ''
+    let usuariosFora: string[] = []
+    commit(
+      (prev) => {
+        const target = prev.pessoas.find((p) => p.id === id)
+        escolaId = target?.escolaId ?? ''
+        const pessoas = prev.pessoas.filter((p) => p.id !== id)
+        const escolas = target
+          ? prev.escolas.map((e) => (e.id === target.escolaId ? bump(e, target.status, -1) : e))
+          : prev.escolas
+        usuariosFora = prev.usuarios.filter((u) => u.pessoaId === id).map((u) => u.id)
+        const usuarios = prev.usuarios.filter((u) => u.pessoaId !== id)
+        return {
+          ...prev,
+          pessoas,
+          escolas,
+          usuarios,
+          pessoasRemovidas: marcarRemovidos(prev.pessoasRemovidas, [id]),
+          usuariosRemovidos: marcarRemovidos(prev.usuariosRemovidos, usuariosFora),
+        }
+      },
+      true,
+      (next) => {
+        const recorte: Record<string, unknown> = {
+          pessoasRemovidas: [id],
+          usuariosRemovidos: usuariosFora,
+        }
+        if (escolaId) recorte.escolas = next.escolas.filter((e) => e.id === escolaId)
+        return recorte
+      },
+    )
   }, [commit])
 
   const saveEscola = useCallback((escola: Escola) => {
     commit((prev) => {
       const exists = prev.escolas.some((e) => e.id === escola.id)
+      if (!exists && prev.escolas.length >= limiteEscolas) return prev
       const escolas = exists
         ? prev.escolas.map((e) => (e.id === escola.id ? escola : e))
         : [...prev.escolas, escola]
@@ -584,7 +745,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         escolasRemovidas: tirarRemovido(prev.escolasRemovidas, escola.id),
       }
     }, true)
-  }, [commit])
+  }, [commit, limiteEscolas])
 
   const importarEscolas = useCallback((novas: Escola[]) => {
     if (!novas.length) return
@@ -592,6 +753,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       let escolas = prev.escolas
       for (const escola of novas) {
         const exists = escolas.some((e) => e.id === escola.id)
+        if (!exists && escolas.length >= limiteEscolas) continue
         escolas = exists ? escolas.map((e) => (e.id === escola.id ? escola : e)) : [...escolas, escola]
       }
       return {
@@ -600,7 +762,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         escolasRemovidas: (prev.escolasRemovidas ?? []).filter((id) => !novas.some((e) => e.id === id)),
       }
     }, true)
-  }, [commit])
+  }, [commit, limiteEscolas])
 
   const removeEscola = useCallback((id: string) => {
     commit((prev) => {
@@ -664,54 +826,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const saveRelatorio = useCallback((relatorio: RelatorioDiario, ctx?: { turma?: string }) => {
+    if (bloqueiaOperacao) return
     const agora = new Date().toISOString()
-    commit((prev) => {
-      const payload = { ...relatorio, updatedAt: agora }
-      const exists = prev.relatorios.some((r) => r.id === payload.id)
-      const relatorios = exists
-        ? prev.relatorios.map((r) => (r.id === payload.id ? payload : r))
-        : [...prev.relatorios, payload]
-      const turma = (ctx?.turma ?? '').trim()
-      const valor = turma.toLowerCase() === 'professores' ? (payload.ofertaProfessores ?? 0) : payload.oferta
-      const lancId = turma ? idLancOfertaClasse(payload.escolaId, payload.data, turma) : `oferta_${payload.id}`
-      let lancamentos = prev.lancamentos
-      let lancamentosRemovidos = prev.lancamentosRemovidos
-      if (valor > 0) {
-        const existenteLanc = lancamentos.find((l) => l.id === lancId)
-        const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
-        const lanc: LancamentoFinanceiro = {
-          id: lancId,
-          escolaId: payload.escolaId,
-          data: payload.data,
-          tipo: 'oferta',
-          descricao: existenteLanc?.descricao || (turma
-            ? `Oferta EBD ${turma} · ${formatDateBR(payload.data)}`
-            : `Oferta EBD ${formatDateBR(payload.data)}`),
-          valor,
-          turma: turma || existenteLanc?.turma || undefined,
-          categoriaId: categoriaOuPadrao(existenteLanc?.categoriaId, cats, CAT_OFERTA_EBD_ID, 'Oferta da EBD'),
-          updatedAt: agora,
+    const turma = (ctx?.turma ?? '').trim()
+    const lancId = turma ? idLancOfertaClasse(relatorio.escolaId, relatorio.data, turma) : `oferta_${relatorio.id}`
+    commit(
+      (prev) => {
+        const payload = { ...relatorio, updatedAt: agora }
+        const exists = prev.relatorios.some((r) => r.id === payload.id)
+        const relatorios = exists
+          ? prev.relatorios.map((r) => (r.id === payload.id ? payload : r))
+          : [...prev.relatorios, payload]
+        const valor = turma.toLowerCase() === 'professores' ? (payload.ofertaProfessores ?? 0) : payload.oferta
+        let lancamentos = prev.lancamentos
+        let lancamentosRemovidos = prev.lancamentosRemovidos
+        if (valor > 0) {
+          const existenteLanc = lancamentos.find((l) => l.id === lancId)
+          const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
+          const lanc: LancamentoFinanceiro = {
+            id: lancId,
+            escolaId: payload.escolaId,
+            data: payload.data,
+            tipo: 'oferta',
+            descricao: existenteLanc?.descricao || (turma
+              ? `Oferta EBD ${turma} · ${formatDateBR(payload.data)}`
+              : `Oferta EBD ${formatDateBR(payload.data)}`),
+            valor,
+            turma: turma || existenteLanc?.turma || undefined,
+            categoriaId: categoriaOuPadrao(existenteLanc?.categoriaId, cats, CAT_OFERTA_EBD_ID, 'Oferta da EBD'),
+            updatedAt: agora,
+          }
+          lancamentos = lancamentos.some((l) => l.id === lancId)
+            ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
+            : [...lancamentos, lanc]
+          lancamentosRemovidos = tirarRemovido(lancamentosRemovidos, lancId)
+        } else {
+          const existia = lancamentos.some((l) => l.id === lancId)
+          lancamentos = lancamentos.filter((l) => l.id !== lancId)
+          if (existia) lancamentosRemovidos = marcarRemovidos(lancamentosRemovidos, [lancId])
         }
-        lancamentos = lancamentos.some((l) => l.id === lancId)
-          ? lancamentos.map((l) => (l.id === lancId ? lanc : l))
-          : [...lancamentos, lanc]
-        lancamentosRemovidos = tirarRemovido(lancamentosRemovidos, lancId)
-      } else {
-        const existia = lancamentos.some((l) => l.id === lancId)
-        lancamentos = lancamentos.filter((l) => l.id !== lancId)
-        if (existia) lancamentosRemovidos = marcarRemovidos(lancamentosRemovidos, [lancId])
-      }
-      return {
-        ...prev,
-        relatorios,
-        lancamentos,
-        lancamentosRemovidos,
-        categoriasFinanceiras: garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas),
-      }
-    }, true)
-  }, [commit])
+        return {
+          ...prev,
+          relatorios,
+          lancamentos,
+          lancamentosRemovidos,
+          categoriasFinanceiras: garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas),
+        }
+      },
+      true,
+      (next) => {
+        const recorte: Record<string, unknown> = {
+          relatorios: next.relatorios.filter((r) => r.id === relatorio.id),
+          categoriasFinanceiras: next.categoriasFinanceiras,
+        }
+        const lanc = next.lancamentos.find((l) => l.id === lancId)
+        if (lanc) recorte.lancamentos = [lanc]
+        else recorte.lancamentosRemovidos = [lancId]
+        return recorte
+      },
+    )
+  }, [commit, bloqueiaOperacao])
 
   const saveLancamento = useCallback((lancamento: LancamentoFinanceiro) => {
+    if (bloqueiaOperacao) return
     commit((prev) => {
       const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
       const gravar = { ...lancamento, updatedAt: agoraIso() }
@@ -726,9 +903,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         categoriasFinanceiras: cats,
       }
     }, true)
-  }, [commit])
+  }, [commit, bloqueiaOperacao])
 
   const removeLancamento = useCallback((id: string) => {
+    if (bloqueiaOperacao) return
     commit(
       (prev) => ({
         ...prev,
@@ -737,7 +915,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
       true,
     )
-  }, [commit])
+  }, [commit, bloqueiaOperacao])
 
   const saveCategoriaFinanceira = useCallback((categoria: CategoriaFinanceira) => {
     commit((prev) => {
@@ -793,6 +971,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit])
 
   const saveRevista = useCallback((revista: RevistaControle) => {
+    if (bloqueiaOperacao) return
     commit((prev) => {
       const lista = prev.revistas ?? []
       const gravar = { ...revista, updatedAt: agoraIso() }
@@ -843,9 +1022,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         categoriasFinanceiras: garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas),
       }
     }, true)
-  }, [commit])
+  }, [commit, bloqueiaOperacao])
 
   const removeRevista = useCallback((id: string) => {
+    if (bloqueiaOperacao) return
     commit((prev) => {
       const lancId = idLancRevista(id)
       const existiaLanc = prev.lancamentos.some((l) => l.id === lancId)
@@ -859,7 +1039,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : prev.lancamentosRemovidos,
       }
     }, true)
-  }, [commit])
+  }, [commit, bloqueiaOperacao])
 
   const setWhatsapp = useCallback((numero: string) => {
     commit((prev) => ({ ...prev, whatsapp: numero }))
@@ -1037,6 +1217,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }, [commit])
 
+  const excluirAlerta = useCallback((chave: string) => {
+    commit((prev) => {
+      const u = prev.usuarios.find((x) => x.id === prev.sessaoId)
+      if (perfilDe(u?.papel) !== 'superintendente') return prev
+      if (!chave || (prev.alertasExcluidos ?? []).includes(chave)) return prev
+      return { ...prev, alertasExcluidos: marcarRemovidos(prev.alertasExcluidos, [chave]) }
+    }, true)
+  }, [commit])
+
   const saveCertificado = useCallback((certificado: Certificado) => {
     commit((prev) => {
       const certificados = prev.certificados.some((c) => c.id === certificado.id)
@@ -1198,6 +1387,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeLicao,
       saveAviso,
       removeAviso,
+      excluirAlerta,
       saveCertificado,
       removeCertificado,
       saveModeloCertificado,
@@ -1220,6 +1410,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ehProfessor,
       ehAluno,
       ehSecretario,
+      igreja,
+      bloqueiaChamadaEFinanceiro: bloqueiaOperacao,
+      limitePessoas,
+      limiteEscolas,
+      temRecurso,
+      setIgreja,
     }),
     [
       state,
@@ -1258,6 +1454,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeLicao,
       saveAviso,
       removeAviso,
+      excluirAlerta,
       saveCertificado,
       removeCertificado,
       saveModeloCertificado,
@@ -1280,6 +1477,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ehProfessor,
       ehAluno,
       ehSecretario,
+      igreja,
+      bloqueiaOperacao,
+      limitePessoas,
+      limiteEscolas,
+      temRecurso,
+      setIgreja,
     ],
   )
 

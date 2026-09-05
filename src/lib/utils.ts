@@ -129,8 +129,9 @@ export function mesNome(iso: string): string {
 }
 
 export function usernameFromNome(nome: string): string {
-  const base = normalize(nome).replace(/[^a-z0-9]+/g, '').slice(0, 14)
-  return base || 'prof'
+  const primeiro = normalize(nome).split(/[\s.]+/).find((p) => /[a-z]/.test(p)) ?? ''
+  const base = primeiro.replace(/[^a-z0-9]/g, '').slice(0, 14)
+  return base || 'user'
 }
 
 export function trimestreDe(iso: string): { ano: number; tri: number } {

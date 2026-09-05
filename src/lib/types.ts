@@ -44,6 +44,7 @@ export type Escola = {
   status: StatusEscola
   ativos: number
   inativos: number
+  updatedAt?: string
 }
 
 export type Pessoa = {
@@ -307,6 +308,7 @@ export type AppState = {
   usuariosRemovidos?: string[]
   lancamentosRemovidos?: string[]
   avisosRemovidos?: string[]
+  alertasExcluidos?: string[]
   eventosRemovidos?: string[]
   setoresRemovidos?: string[]
   cursosRemovidos?: string[]

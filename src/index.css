@@ -135,12 +135,11 @@ table.data tbody tr:hover {
 }
 
 html.tema-escuro.site-publico header {
-  background: rgb(28 51 79 / 0.96);
-  border-color: #2a425c;
+  background: rgb(255 255 255 / 0.96);
+  border-color: rgb(21 34 56 / 0.08);
 }
 
 html.tema-escuro.site-publico header span,
-html.tema-escuro.site-publico header nav a,
-html.tema-escuro.site-publico header a.text-navy {
-  color: #f4f7fb;
+html.tema-escuro.site-publico header nav a {
+  color: #152238;
 }

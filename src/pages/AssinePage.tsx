@@ -5,7 +5,7 @@ import { TemaToggle } from '../components/TemaToggle'
 import { Field, PrimaryButton, inputClass } from '../components/ui'
 import { apiIniciarAssinatura, apiStatusAssinatura } from '../lib/api'
 import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
-import { formatarBRL, LIMITE_PESSOAS_IGREJA, PLANOS, planoValido, valorParcela, type PlanoId } from '../lib/planos'
+import { checkoutDo, formatarBRL, PLANOS, planoValido, PRODUTOS, valorParcela, type PagamentoId, type PlanoCheckoutId, type ProdutoId } from '../lib/planos'
 
 function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -25,11 +25,18 @@ function Shell({ children }: { children: ReactNode }) {
 
 export function AssinePage() {
   const [params] = useSearchParams()
+  const inicial = planoValido(params.get('plano'))
   const [form, setForm] = useState({ nome: '', cidade: '', responsavel: '', email: '', telefone: '' })
-  const [plano, setPlano] = useState<PlanoId>(() => planoValido(params.get('plano')))
+  const [produto, setProduto] = useState<ProdutoId>(PLANOS[inicial].produto)
+  const [pagamento, setPagamento] = useState<PagamentoId>(
+    PLANOS[inicial].pagamento === 'teste' ? 'avista' : PLANOS[inicial].pagamento,
+  )
+  const [teste, setTeste] = useState(inicial === 'teste')
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const plano: PlanoCheckoutId = teste ? 'teste' : checkoutDo(produto, pagamento)
   const escolhido = PLANOS[plano]
+  const def = PRODUTOS[produto]
 
   return (
     <Shell>
@@ -38,30 +45,71 @@ export function AssinePage() {
       </Link>
       <h1 className="mt-4 text-2xl font-semibold text-navy">Assinar o EDB Total</h1>
       <p className="mt-1 text-sm text-muted">
-        Cadastre a igreja, pague o plano anual e receba o usuário e a senha inicial no e-mail informado. Até {LIMITE_PESSOAS_IGREJA} cadastros por igreja.
+        Cadastre a igreja, pague o plano anual e receba o usuário e a senha no e-mail. O app libera as telas do plano
+        escolhido.
       </p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">Plano</p>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {(['essencial', 'igreja'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={`rounded-xl border p-4 text-left ${!teste && produto === id ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}
+            onClick={() => {
+              setTeste(false)
+              setProduto(id)
+            }}
+          >
+            <p className="text-sm font-semibold">{PRODUTOS[id].nome}</p>
+            <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS[checkoutDo(id, 'avista')].preco)}/ano</p>
+            <p className={`mt-1 text-xs ${!teste && produto === id ? 'text-white/80' : 'text-muted'}`}>
+              {PRODUTOS[id].descricao}
+            </p>
+          </button>
+        ))}
+      </div>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">Pagamento</p>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          className={`rounded-xl border p-4 text-left ${plano === 'avista' ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}
-          onClick={() => setPlano('avista')}
+          className={`rounded-xl border p-4 text-left ${pagamento === 'avista' && !teste ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}
+          onClick={() => {
+            setTeste(false)
+            setPagamento('avista')
+          }}
         >
           <p className="text-sm font-semibold">À vista</p>
-          <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS.avista.preco)}/ano</p>
-          <p className={`mt-1 text-xs ${plano === 'avista' ? 'text-white/80' : 'text-muted'}`}>Pagamento único</p>
+          <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS[checkoutDo(produto, 'avista')].preco)}</p>
         </button>
         <button
           type="button"
-          className={`rounded-xl border p-4 text-left ${plano === 'parcelado' ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}
-          onClick={() => setPlano('parcelado')}
+          className={`rounded-xl border p-4 text-left ${pagamento === 'parcelado' && !teste ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}
+          onClick={() => {
+            setTeste(false)
+            setPagamento('parcelado')
+          }}
         >
           <p className="text-sm font-semibold">Até 12x</p>
-          <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS.parcelado.preco)}/ano</p>
-          <p className={`mt-1 text-xs ${plano === 'parcelado' ? 'text-white/80' : 'text-muted'}`}>
-            {PLANOS.parcelado.parcelas}x de {formatarBRL(valorParcela('parcelado'))}
+          <p className="mt-1 text-lg font-semibold">
+            {formatarBRL(valorParcela(checkoutDo(produto, 'parcelado')))}
           </p>
         </button>
+        {params.get('plano') === 'teste' ? (
+          <button
+            type="button"
+            className={`rounded-xl border p-4 text-left sm:col-span-2 ${teste ? 'border-navy bg-navy text-white' : 'border-dashed border-line bg-white'}`}
+            onClick={() => setTeste(true)}
+          >
+            <p className="text-sm font-semibold">Teste de pagamento</p>
+            <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS.teste.preco)}</p>
+          </button>
+        ) : null}
       </div>
+      <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted">
+        {def.itens.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
       <form
         className="mt-6 space-y-4"
         onSubmit={(e) => {
@@ -109,8 +157,12 @@ export function AssinePage() {
           <Link to="/privacidade" className="font-medium text-navy underline">
             Política de privacidade
           </Link>
-          . {escolhido.nome}: {formatarBRL(escolhido.preco)}/ano
-          {plano === 'parcelado' ? ` em até 12x de ${formatarBRL(valorParcela('parcelado'))}` : ' no pagamento único'}.
+          .{' '}
+          {teste
+            ? `${escolhido.nome}: ${formatarBRL(escolhido.preco)} para validar o pagamento e o e-mail.`
+            : `${escolhido.nome}: ${formatarBRL(escolhido.preco)}/ano${
+                escolhido.parcelas > 1 ? ` em até 12x de ${formatarBRL(valorParcela(plano))}` : ' no pagamento único'
+              }.`}
         </p>
         <PrimaryButton type="submit" className="w-full" disabled={enviando}>
           {enviando ? 'Abrindo pagamento…' : 'Ir para o pagamento'}

@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import type { IgrejaSessao, PlanoCheckoutId } from './planos'
 
 const TOKEN_KEY = 'ebd-token'
 export const SITE_URL = 'https://ebdtotal.com'
@@ -76,6 +77,23 @@ export type IgrejaCliente = {
   status: string
   username_admin: string
   created_at: string
+  plano?: string
+  pagamento?: string
+  contratado_em?: string
+  valido_ate?: string
+  pessoas?: number
+}
+
+export type ResumoMaster = {
+  igrejas: number
+  ativas: number
+  suspensas: number
+  trial: number
+  essencial: number
+  igreja: number
+  vencendo: number
+  vencidas: number
+  pessoas: number
 }
 
 export type CadastroGeral = {
@@ -89,7 +107,7 @@ export type CadastroGeral = {
 }
 
 export async function apiLogin(username: string, senha: string) {
-  return req<{ token: string; usuario: UsuarioSessao }>('login.php', {
+  return req<{ token: string; usuario: UsuarioSessao; igreja: IgrejaSessao | null }>('login.php', {
     method: 'POST',
     body: JSON.stringify({ username, senha }),
   })
@@ -104,12 +122,38 @@ export async function apiLogout() {
   setApiToken(null)
 }
 
-export async function apiGetState() {
-  return req<{ state: unknown; usuarioId: string; updatedAt?: string }>('state.php')
+export async function apiGetState(since?: string) {
+  const headers: Record<string, string> = {}
+  const token = apiToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  if (since) headers['If-None-Match'] = `"${since}"`
+  const q = since ? `?since=${encodeURIComponent(since)}` : ''
+  const res = await fetch(`${apiRoot()}/state.php${q}`, { headers })
+  if (res.status === 304) {
+    return { notModified: true as const, updatedAt: since ?? '', usuarioId: '', state: undefined }
+  }
+  const raw = await res.text()
+  let data = {} as { state?: unknown; usuarioId?: string; updatedAt?: string; erro?: string }
+  try {
+    data = JSON.parse(raw) as typeof data
+  } catch {
+    throw new Error('Falha na conexão com o servidor.')
+  }
+  if (!res.ok) throw new Error(data.erro || 'Falha na conexão com o servidor.')
+  return {
+    notModified: false as const,
+    state: data.state,
+    usuarioId: data.usuarioId ?? '',
+    updatedAt: data.updatedAt,
+    igreja: (data as { igreja?: IgrejaSessao | null }).igreja ?? null,
+  }
 }
 
-export async function apiSaveState(state: unknown) {
-  return req<{ ok: boolean; updatedAt?: string }>('state.php', { method: 'POST', body: JSON.stringify({ state }) })
+export async function apiSaveState(state: unknown, patch = false) {
+  return req<{ ok: boolean; updatedAt?: string }>('state.php', {
+    method: 'POST',
+    body: JSON.stringify(patch ? { patch: state } : { state }),
+  })
 }
 
 export async function apiStats(): Promise<StatsPublicos> {
@@ -122,6 +166,7 @@ export async function apiAssinar(payload: {
   responsavel: string
   email: string
   telefone: string
+  plano?: PlanoCheckoutId
 }) {
   return req<{
     igreja: { id: string; nome: string; status: string }
@@ -136,7 +181,7 @@ export async function apiIniciarAssinatura(payload: {
   responsavel: string
   email: string
   telefone: string
-  plano: 'avista' | 'parcelado'
+  plano: PlanoCheckoutId
 }) {
   return req<{ checkoutUrl: string; signupId: string; preco: number; plano: string; email: string; igreja: string }>(
     'clientes.php',
@@ -161,6 +206,8 @@ export type AssinaturaPendente = {
   username: string
   created_at: string
   pago_em: string
+  plano?: string
+  upgrade_tenant_id?: string
 }
 
 export async function apiEsqueciSenha(usuario: string) {
@@ -177,12 +224,111 @@ export async function apiAlterarSenha(senhaAtual: string, senhaNova: string) {
   })
 }
 
+export type CaixaAssinatura = {
+  totalPago: number
+  esteMes: number
+  mesPassado: number
+  aReceber: number
+  pagos: number
+  pendentes: number
+  vencidas: number
+  vencendo: number
+  fluxo: { mes: string; avista: number; parcelado: number; total: number }[]
+  lancamentos: {
+    id: string
+    data: string
+    igreja: string
+    plano: string
+    pagamento: string
+    valor: number
+    origem: string
+  }[]
+  renovar: { id: string; nome: string; plano: string; validoAte: string; dias: number; preco: number }[]
+}
+
 export async function apiClientes() {
-  return req<{ igrejas: IgrejaCliente[]; cadastros: CadastroGeral[]; assinaturas: AssinaturaPendente[] }>('clientes.php')
+  return req<{
+    igrejas: IgrejaCliente[]
+    cadastros: CadastroGeral[]
+    assinaturas: AssinaturaPendente[]
+    resumo: ResumoMaster
+    financeiro: CaixaAssinatura
+  }>('clientes.php')
+}
+
+export type DemoPedido = {
+  id: string
+  nome: string
+  email: string
+  telefone: string
+  igreja: string
+  status: string
+  created_at: string
+  contato_em?: string
+  notas?: string
+}
+
+export async function apiAgendarDemo(payload: { nome: string; email: string; telefone: string; igreja: string }) {
+  return req<{ ok: boolean; mensagem: string; id: string }>('demos.php', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function apiDemos() {
+  return req<{
+    demos: DemoPedido[]
+    resumo: { total: number; novas: number; contactadas: number; concluidas: number }
+  }>('demos.php')
+}
+
+export async function apiPatchDemo(
+  id: string,
+  extra: { status?: string; notas?: string; acao?: 'excluir' },
+) {
+  return req<{ ok: boolean }>('demos.php', {
+    method: 'PATCH',
+    body: JSON.stringify({ id, ...extra }),
+  })
 }
 
 export async function apiStatusIgreja(id: string, status: string) {
   return req<{ ok: boolean }>('clientes.php', { method: 'PATCH', body: JSON.stringify({ id, status }) })
+}
+
+export async function apiPatchIgrejaMaster(
+  id: string,
+  acao: 'dados' | 'plano' | 'renovar' | 'reset_senha' | 'excluir',
+  extra: Record<string, string> = {},
+) {
+  return req<{ ok: boolean; igreja?: IgrejaSessao; login?: { username: string; senha: string; email: string }; emailEnviado?: boolean }>(
+    'clientes.php',
+    { method: 'PATCH', body: JSON.stringify({ id, acao, ...extra }) },
+  )
+}
+
+export async function apiGetIgreja() {
+  return req<{ igreja: IgrejaSessao | null }>('conta.php')
+}
+
+export async function apiSalvarIgreja(dados: {
+  nome: string
+  cidade: string
+  responsavel: string
+  email: string
+  telefone: string
+}) {
+  return req<{ ok: boolean; igreja: IgrejaSessao }>('conta.php', {
+    method: 'PATCH',
+    body: JSON.stringify({ acao: 'dados', ...dados }),
+  })
+}
+
+export async function apiMigrarPlano(pagamento: 'avista' | 'parcelado') {
+  return req<{ checkoutUrl: string; signupId: string; preco: number; plano: string }>('conta.php', {
+    method: 'POST',
+    body: JSON.stringify({ acao: 'migrar', pagamento }),
+  })
 }
 
 export async function apiConfirmarSignup(id: string) {

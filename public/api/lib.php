@@ -16,7 +16,8 @@ if ($origin !== '' && (
   in_array($origin, ['capacitor://localhost', 'ionic://localhost', 'https://ebdtotal.com', 'http://ebdtotal.com'], true)
 )) {
   header("Access-Control-Allow-Origin: $origin");
-  header('Access-Control-Allow-Headers: Authorization, Content-Type');
+  header('Access-Control-Allow-Headers: Authorization, Content-Type, If-None-Match');
+  header('Access-Control-Expose-Headers: ETag');
   header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
   header('Access-Control-Max-Age: 86400');
   header('Vary: Origin');
@@ -36,6 +37,14 @@ function json_err(string $msg, int $code = 400): void {
   http_response_code($code);
   echo json_encode(['erro' => $msg], JSON_UNESCAPED_UNICODE);
   exit;
+}
+
+function etag_cliente(): string {
+  $h = trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+  if (stripos($h, 'W/') === 0) $h = trim(substr($h, 2));
+  $h = trim($h, "\" \t");
+  if ($h !== '' && $h !== '*') return $h;
+  return trim((string)($_GET['since'] ?? ''));
 }
 
 function body(): array {
@@ -185,6 +194,29 @@ function migrate(PDO $pdo): void {
     pago_em TEXT DEFAULT ''
   )");
   ensure_column($pdo, 'signups', 'plano', "plano TEXT DEFAULT 'avista'");
+  ensure_column($pdo, 'signups', 'upgrade_tenant_id', "upgrade_tenant_id TEXT DEFAULT ''");
+  ensure_column($pdo, 'signups', 'preco', 'preco REAL DEFAULT 0');
+  $pdo->exec("CREATE TABLE IF NOT EXISTS demos (
+    id TEXT PRIMARY KEY,
+    nome TEXT NOT NULL,
+    email TEXT NOT NULL,
+    telefone TEXT DEFAULT '',
+    igreja TEXT NOT NULL,
+    status TEXT DEFAULT 'nova',
+    created_at TEXT NOT NULL,
+    contato_em TEXT DEFAULT '',
+    notas TEXT DEFAULT ''
+  )");
+  try {
+    $pdo->exec('CREATE INDEX idx_demos_created ON demos (created_at)');
+  } catch (Throwable $e) {
+    /* índice já existe */
+  }
+  ensure_column($pdo, 'tenants', 'plano', "plano TEXT DEFAULT 'igreja'");
+  ensure_column($pdo, 'tenants', 'pagamento', "pagamento TEXT DEFAULT 'avista'");
+  ensure_column($pdo, 'tenants', 'contratado_em', "contratado_em TEXT DEFAULT ''");
+  ensure_column($pdo, 'tenants', 'valido_ate', "valido_ate TEXT DEFAULT ''");
+  garantir_validade_tenants($pdo);
   ensure_column($pdo, 'users', 'email', 'email TEXT DEFAULT \'\'');
   ensure_column($pdo, 'pessoas_idx', 'email', 'email TEXT DEFAULT \'\'');
 
@@ -264,6 +296,7 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'usuariosRemovidos' => [],
     'lancamentosRemovidos' => [],
     'avisosRemovidos' => [],
+    'alertasExcluidos' => [],
     'eventosRemovidos' => [],
     'setoresRemovidos' => [],
     'cursosRemovidos' => [],
@@ -582,30 +615,143 @@ function site_url(): string {
   return ($https ? 'https' : 'http') . '://' . $host;
 }
 
-function limite_pessoas_igreja(): int {
+function garantir_validade_tenants(PDO $pdo): void {
+  try {
+    $rows = $pdo->query("SELECT id, created_at, contratado_em, valido_ate, plano FROM tenants WHERE id != 'master'")->fetchAll();
+  } catch (Throwable $e) {
+    return;
+  }
+  $up = $pdo->prepare('UPDATE tenants SET plano=?, contratado_em=?, valido_ate=? WHERE id=?');
+  foreach ($rows as $r) {
+    $planoAtual = strtolower(trim((string)($r['plano'] ?? 'igreja')));
+    $plano = produto_do_checkout($planoAtual);
+    $inicio = trim((string)($r['contratado_em'] ?? ''));
+    $fim = trim((string)($r['valido_ate'] ?? ''));
+    if ($inicio !== '' && $fim !== '' && ($planoAtual === 'essencial' || $planoAtual === 'igreja')) continue;
+    if ($inicio === '') $inicio = (string)($r['created_at'] ?? gmdate('c'));
+    if ($fim === '') $fim = data_mais_um_ano($inicio);
+    $up->execute([$plano, $inicio, $fim, $r['id']]);
+  }
+}
+
+function data_mais_um_ano(string $iso): string {
+  $t = strtotime($iso);
+  if ($t === false) $t = time();
+  return gmdate('c', strtotime('+1 year', $t) ?: ($t + 365 * 86400));
+}
+
+function plano_id(string $plano): string {
+  $p = strtolower(trim($plano));
+  if ($p === 'essencial' || $p === 'essencial12') return $p;
+  if ($p === 'igreja' || $p === 'igreja12' || $p === 'teste') return $p;
+  if ($p === 'parcelado') return 'igreja12';
+  if ($p === 'avista') return 'igreja';
+  return 'igreja';
+}
+
+function produto_do_checkout(string $plano): string {
+  $id = plano_id($plano);
+  if ($id === 'essencial' || $id === 'essencial12') return 'essencial';
+  return 'igreja';
+}
+
+function pagamento_do_checkout(string $plano): string {
+  $id = plano_id($plano);
+  if ($id === 'teste') return 'teste';
+  if ($id === 'essencial12' || $id === 'igreja12' || $id === 'parcelado') return 'parcelado';
+  return 'avista';
+}
+
+function entitlements_produto(string $produto): array {
+  if ($produto === 'essencial') {
+    return ['produto' => 'essencial', 'pessoas' => 80, 'escolas' => 1];
+  }
+  return ['produto' => 'igreja', 'pessoas' => 600, 'escolas' => 9999];
+}
+
+function limite_pessoas_igreja(?string $tenantId = null): int {
+  if ($tenantId) {
+    try {
+      $pdo = db();
+      $st = $pdo->prepare('SELECT plano FROM tenants WHERE id = ?');
+      $st->execute([$tenantId]);
+      $row = $st->fetch();
+      if ($row) {
+        $ent = entitlements_produto(produto_do_checkout((string)($row['plano'] ?? 'igreja')));
+        return (int)$ent['pessoas'];
+      }
+    } catch (Throwable $e) {
+      /* */
+    }
+  }
   $n = (int)(cfg()['limites']['pessoas'] ?? 600);
   return $n > 0 ? $n : 600;
 }
 
+function limite_escolas_igreja(string $tenantId): int {
+  try {
+    $st = db()->prepare('SELECT plano FROM tenants WHERE id = ?');
+    $st->execute([$tenantId]);
+    $row = $st->fetch();
+    $ent = entitlements_produto(produto_do_checkout((string)($row['plano'] ?? 'igreja')));
+    return (int)$ent['escolas'];
+  } catch (Throwable $e) {
+    return 9999;
+  }
+}
+
+function igreja_publica(PDO $pdo, string $tenantId): ?array {
+  if ($tenantId === '' || $tenantId === 'master') return null;
+  $st = $pdo->prepare('SELECT id,nome,cidade,responsavel,email,telefone,status,plano,pagamento,contratado_em,valido_ate,username_admin,created_at FROM tenants WHERE id = ?');
+  $st->execute([$tenantId]);
+  $t = $st->fetch();
+  if (!$t) return null;
+  $produto = produto_do_checkout((string)($t['plano'] ?? 'igreja'));
+  return [
+    'id' => $t['id'],
+    'nome' => $t['nome'],
+    'cidade' => $t['cidade'],
+    'responsavel' => $t['responsavel'],
+    'email' => $t['email'],
+    'telefone' => $t['telefone'],
+    'status' => $t['status'],
+    'plano' => $produto,
+    'pagamento' => (string)($t['pagamento'] ?? 'avista'),
+    'contratadoEm' => (string)($t['contratado_em'] ?? $t['created_at'] ?? ''),
+    'validoAte' => (string)($t['valido_ate'] ?? ''),
+    'usernameAdmin' => (string)($t['username_admin'] ?? ''),
+    'createdAt' => (string)($t['created_at'] ?? ''),
+  ];
+}
+
 function plano_assinatura(string $plano): array {
   $p = cfg()['pagamento'] ?? [];
-  $avista = (float)($p['preco_avista'] ?? $p['preco'] ?? 1299);
-  $parcelado = (float)($p['preco_parcelado'] ?? 1499);
-  if ($avista <= 0) $avista = 1299;
-  if ($parcelado <= 0) $parcelado = 1499;
-  if ($plano === 'parcelado') {
-    return [
-      'id' => 'parcelado',
-      'preco' => $parcelado,
-      'parcelas' => 12,
-      'titulo' => 'EDB Total — plano anual (até 12x)',
-    ];
-  }
+  $precos = [
+    'essencial' => (float)($p['preco_essencial'] ?? 499),
+    'essencial12' => (float)($p['preco_essencial12'] ?? 588),
+    'igreja' => (float)($p['preco_avista'] ?? $p['preco_igreja'] ?? 1499),
+    'igreja12' => (float)($p['preco_parcelado'] ?? $p['preco_igreja12'] ?? 1798.8),
+    'teste' => (float)($p['preco_teste'] ?? 2),
+  ];
+  $id = plano_id($plano);
+  $titulos = [
+    'essencial' => 'EDB Total — Essencial à vista',
+    'essencial12' => 'EDB Total — Essencial (até 12x)',
+    'igreja' => 'EDB Total — Igreja à vista',
+    'igreja12' => 'EDB Total — Igreja (até 12x)',
+    'teste' => 'EDB Total — teste de pagamento',
+  ];
+  $parcelas = ($id === 'essencial12' || $id === 'igreja12') ? 12 : 1;
+  $preco = $precos[$id] ?? $precos['igreja'];
+  if ($preco <= 0) $preco = $precos['igreja'];
+  $ent = entitlements_produto(produto_do_checkout($id));
   return [
-    'id' => 'avista',
-    'preco' => $avista,
-    'parcelas' => 1,
-    'titulo' => 'EDB Total — plano anual à vista',
+    'id' => $id,
+    'produto' => $ent['produto'],
+    'preco' => $preco,
+    'parcelas' => $parcelas,
+    'titulo' => $titulos[$id] ?? 'EDB Total — plano anual',
+    'pessoas' => $ent['pessoas'],
   ];
 }
 
@@ -666,7 +812,7 @@ function mp_criar_preferencia(string $sid, string $igreja, string $responsavel, 
     'items' => [[
       'id' => 'ebd-' . (string)($plano['id'] ?? 'avista'),
       'title' => (string)($plano['titulo'] ?? 'EDB Total — plano anual'),
-      'description' => 'Acesso da igreja ' . $igreja . ' (até 600 cadastros)',
+      'description' => 'Acesso da igreja ' . $igreja . ' (plano ' . (string)($plano['titulo'] ?? 'EDB Total') . ')',
       'quantity' => 1,
       'currency_id' => 'BRL',
       'unit_price' => round((float)$plano['preco'], 2),
@@ -706,16 +852,7 @@ function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
   if ($nome === '' || $responsavel === '') json_err('Informe o nome da igreja e o responsável.');
   if (!in_array($status, ['trial', 'ativa'], true)) $status = 'trial';
 
-  $base = slug_user($nome);
-  $username = $base;
-  $n = 1;
-  $chk = $pdo->prepare('SELECT id FROM users WHERE username = ?');
-  while (true) {
-    $chk->execute([$username]);
-    if (!$chk->fetch()) break;
-    $n++;
-    $username = $base . $n;
-  }
+  $username = username_novo($pdo, $responsavel);
   $senha = senha_forte();
   $tid = uid('igreja');
   $uid = uid('u');
@@ -725,8 +862,13 @@ function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
   $telefone = trim((string)($in['telefone'] ?? ''));
   if (!email_valido($email)) json_err('Informe um e-mail válido. Enviaremos o login e a senha para ele.');
 
-  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
-    ->execute([$tid, $nome, $cidade, $responsavel, $email, $telefone, $status, $username, $now]);
+  $checkout = plano_id((string)($in['plano'] ?? 'igreja'));
+  $produto = produto_do_checkout($checkout);
+  $pagamento = pagamento_do_checkout($checkout);
+  $valido = data_mais_um_ano($now);
+
+  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at,plano,pagamento,contratado_em,valido_ate) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    ->execute([$tid, $nome, $cidade, $responsavel, $email, $telefone, $status, $username, $now, $produto, $pagamento, $now, $valido]);
   $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,email) VALUES (?,?,?,?,?,?,?)')
     ->execute([$uid, $tid, $responsavel, $username, password_hash($senha, PASSWORD_DEFAULT), 'sede', $email]);
 
@@ -775,6 +917,7 @@ function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
     'usuariosRemovidos' => [],
     'lancamentosRemovidos' => [],
     'avisosRemovidos' => [],
+    'alertasExcluidos' => [],
     'eventosRemovidos' => [],
     'setoresRemovidos' => [],
     'cursosRemovidos' => [],
@@ -820,22 +963,28 @@ function iniciar_assinatura(PDO $pdo, array $in): array {
   $email = strtolower(trim((string)($in['email'] ?? '')));
   $cidade = trim((string)($in['cidade'] ?? ''));
   $telefone = trim((string)($in['telefone'] ?? ''));
-  $planoId = ((string)($in['plano'] ?? '')) === 'parcelado' ? 'parcelado' : 'avista';
+  $planoId = plano_id((string)($in['plano'] ?? ''));
   $plano = plano_assinatura($planoId);
   if ($nome === '' || $responsavel === '') json_err('Informe o nome da igreja e o responsável.');
   if (!email_valido($email)) json_err('Informe um e-mail válido. Enviaremos o login e a senha para ele após o pagamento.');
 
-  $st = $pdo->prepare("SELECT * FROM signups WHERE email = ? AND status = 'pendente' ORDER BY created_at DESC LIMIT 1");
-  $st->execute([$email]);
+  $upgradeTid = trim((string)($in['upgradeTenantId'] ?? $in['upgrade_tenant_id'] ?? ''));
+  if ($upgradeTid !== '') {
+    $st = $pdo->prepare("SELECT * FROM signups WHERE upgrade_tenant_id = ? AND status = 'pendente' ORDER BY created_at DESC LIMIT 1");
+    $st->execute([$upgradeTid]);
+  } else {
+    $st = $pdo->prepare("SELECT * FROM signups WHERE email = ? AND status = 'pendente' AND COALESCE(upgrade_tenant_id,'') = '' ORDER BY created_at DESC LIMIT 1");
+    $st->execute([$email]);
+  }
   $exist = $st->fetch();
   $sid = $exist ? (string)$exist['id'] : uid('ass');
   $now = gmdate('c');
   if ($exist) {
-    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=? WHERE id=?')
-      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $sid]);
+    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=?, upgrade_tenant_id=? WHERE id=?')
+      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $upgradeTid, $sid]);
   } else {
-    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
-      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now]);
+    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at,upgrade_tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now, $upgradeTid]);
   }
 
   $token = trim((string)(cfg()['pagamento']['mp_access_token'] ?? ''));
@@ -897,21 +1046,43 @@ function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): arra
     ];
   }
 
+  $checkout = plano_id((string)($row['plano'] ?? 'igreja'));
+  $upgradeTid = trim((string)($row['upgrade_tenant_id'] ?? ''));
+  if ($upgradeTid !== '') {
+    $now = gmdate('c');
+    $produto = produto_do_checkout($checkout);
+    $pagamento = pagamento_do_checkout($checkout);
+    $pdo->prepare('UPDATE tenants SET plano=?, pagamento=?, contratado_em=?, valido_ate=?, status=? WHERE id=?')
+      ->execute([$produto, $pagamento, $now, data_mais_um_ano($now), 'ativa', $upgradeTid]);
+    $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, pago_em=?, preco=? WHERE id=?')
+      ->execute(['pago', $paymentId, $upgradeTid, $now, preco_assinatura($checkout), $signupId]);
+    registrar_atividade($pdo, $upgradeTid, ['id' => '', 'username' => '', 'nome' => (string)$row['responsavel'], 'papel' => 'sede'], 'migrou plano', $produto);
+    return [
+      'jaPago' => false,
+      'igreja' => ['id' => $upgradeTid, 'nome' => $row['nome'], 'status' => 'ativa'],
+      'login' => ['username' => (string)$row['username'], 'senha' => '', 'nome' => $row['responsavel'], 'email' => $row['email']],
+      'emailEnviado' => false,
+      'upgrade' => true,
+    ];
+  }
+
   $criado = criar_cliente($pdo, [
     'nome' => $row['nome'],
     'cidade' => $row['cidade'],
     'responsavel' => $row['responsavel'],
     'email' => $row['email'],
     'telefone' => $row['telefone'],
+    'plano' => $checkout,
   ], 'ativa');
 
-  $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, username=?, pago_em=? WHERE id=?')
+  $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, username=?, pago_em=?, preco=? WHERE id=?')
     ->execute([
       'pago',
       $paymentId,
       $criado['igreja']['id'],
       $criado['login']['username'],
       gmdate('c'),
+      preco_assinatura($checkout),
       $signupId,
     ]);
   return $criado;
@@ -931,7 +1102,7 @@ function processar_pagamento_mp(PDO $pdo, string $paymentId): bool {
   $stPlano = $pdo->prepare('SELECT plano FROM signups WHERE id = ?');
   $stPlano->execute([$ref]);
   $rowPlano = $stPlano->fetch();
-  $planoId = ((string)($rowPlano['plano'] ?? '')) === 'parcelado' ? 'parcelado' : 'avista';
+  $planoId = plano_id((string)($rowPlano['plano'] ?? ''));
   if ($amount + 0.009 < preco_assinatura($planoId)) return false;
   ativar_signup_pago($pdo, $ref, $paymentId);
   return true;
@@ -965,9 +1136,45 @@ function senha_e_hash(string $senha): bool {
 
 function slug_login(string $nome): string {
   $s = iconv('UTF-8', 'ASCII//TRANSLIT', $nome) ?: $nome;
-  $s = strtolower(preg_replace('/[^a-z0-9]+/i', '', $s) ?? '');
-  $s = substr($s, 0, 14);
-  return $s !== '' ? $s : 'user';
+  $s = strtolower(trim($s));
+  $partes = preg_split('/[\s.]+/', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+  $primeiro = '';
+  foreach ($partes as $p) {
+    $p = preg_replace('/[^a-z0-9]/', '', $p) ?? '';
+    if ($p !== '') { $primeiro = $p; break; }
+  }
+  $primeiro = substr($primeiro, 0, 14);
+  return $primeiro !== '' ? $primeiro : 'user';
+}
+
+function users_username_ocupado(PDO $pdo, string $exceptId): callable {
+  $st = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+  return static function (string $u) use ($st, $exceptId): bool {
+    $st->execute([$u]);
+    $row = $st->fetch();
+    return $row && (string)$row['id'] !== $exceptId;
+  };
+}
+
+function username_livre(string $base, callable $ocupado): string {
+  $base = strtolower(trim($base));
+  if ($base === '') $base = 'user';
+  if (preg_match('/^([a-z][a-z0-9]*?)(\d+)?$/', $base, $m)) $base = $m[1];
+  $n = 1;
+  while ($ocupado($base . (string)$n)) $n++;
+  return $base . (string)$n;
+}
+
+function username_novo(PDO $pdo, string $nome, string $exceptId = ''): string {
+  return username_livre(slug_login($nome), users_username_ocupado($pdo, $exceptId));
+}
+
+function username_disponivel(PDO $pdo, string $username, string $exceptId): string {
+  $username = strtolower(trim($username));
+  if ($username === '') $username = 'user';
+  $ocupado = users_username_ocupado($pdo, $exceptId);
+  if (!$ocupado($username)) return $username;
+  return username_livre($username, $ocupado);
 }
 
 function papel_do_tipo(string $tipo): ?string {
@@ -988,21 +1195,6 @@ function stamp_missing_updated_at(array $state, string $ts): array {
     }
   }
   return $state;
-}
-
-function username_disponivel(PDO $pdo, string $username, string $exceptId): string {
-  $username = strtolower(trim($username));
-  if ($username === '') $username = 'user.' . bin2hex(random_bytes(3));
-  $base = $username;
-  $n = 1;
-  while (true) {
-    $st = $pdo->prepare('SELECT id FROM users WHERE username = ?');
-    $st->execute([$username]);
-    $row = $st->fetch();
-    if (!$row || (string)$row['id'] === $exceptId) return $username;
-    $n += 1;
-    $username = $base . $n;
-  }
 }
 
 function reconciliar_acessos(array $state): array {
@@ -1031,19 +1223,14 @@ function reconciliar_acessos(array $state): array {
     $escolhidos[$pid] = true;
     $out[] = $u;
   }
-  $suf = ['professor' => 'prof', 'aluno' => 'aluno', 'superintendente' => 'super', 'secretario' => 'sec'];
   foreach ($pessoasById as $pid => $p) {
     if (isset($escolhidos[$pid])) continue;
     if (($p['status'] ?? 'Ativo') !== 'Ativo') continue;
     $papel = papel_do_tipo((string)($p['tipo'] ?? ''));
     if (!$papel) continue;
-    $base = slug_login((string)($p['nome'] ?? '')) . '.' . ($suf[$papel] ?? 'user');
-    $username = $base;
-    $n = 1;
-    while (isset($usernames[$username])) {
-      $n += 1;
-      $username = $base . $n;
-    }
+    $username = username_livre(slug_login((string)($p['nome'] ?? '')), static function (string $u) use (&$usernames): bool {
+      return isset($usernames[$u]);
+    });
     $usernames[$username] = true;
     $out[] = [
       'id' => uid('u'),
@@ -1352,6 +1539,7 @@ function merge_state(array $old, array $new): array {
       $out[$tumba] = array_values(array_unique($ids));
     }
   }
+  $out['alertasExcluidos'] = unir_ids($old['alertasExcluidos'] ?? null, $new['alertasExcluidos'] ?? null);
   $removidas = array_flip($out['licoesRemovidas']);
   $licoes = [];
   foreach (is_array($out['licoes'] ?? null) ? $out['licoes'] : [] as $l) {
@@ -1447,4 +1635,153 @@ function deduplicar_licoes(array $licoes): array {
     $keep[] = $lista[0];
   }
   return array_values($keep);
+}
+
+function tenant_plano_vencido(PDO $pdo, string $tid): bool {
+  if ($tid === '' || $tid === 'master') return false;
+  $st = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
+  $st->execute([$tid]);
+  $t = $st->fetch();
+  if (!$t) return false;
+  if ((string)($t['status'] ?? '') === 'suspensa') return true;
+  $fim = strtotime((string)($t['valido_ate'] ?? '')) ?: 0;
+  return $fim > 0 && $fim < time();
+}
+
+function preservar_chamada_financeiro(array $old, array $state): array {
+  foreach (['relatorios', 'lancamentos', 'revistas'] as $c) {
+    $state[$c] = $old[$c] ?? [];
+  }
+  foreach (['lancamentosRemovidos', 'revistasRemovidas'] as $c) {
+    $state[$c] = $old[$c] ?? [];
+  }
+  return $state;
+}
+
+function assinatura_bloqueia_papel(PDO $pdo, array $sess): ?string {
+  $papel = (string)($sess['papel'] ?? '');
+  if ($papel !== 'aluno' && $papel !== 'professor') return null;
+  $tid = (string)($sess['tenant_id'] ?? '');
+  if ($tid === '' || $tid === 'master') return null;
+  $st = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
+  $st->execute([$tid]);
+  $t = $st->fetch();
+  if (!$t) return null;
+  if ((string)($t['status'] ?? '') === 'suspensa') {
+    return 'Esta igreja está suspensa. Fale com a sede da EBD.';
+  }
+  $fim = strtotime((string)($t['valido_ate'] ?? '')) ?: 0;
+  if ($fim > 0 && $fim < time()) {
+    return 'A assinatura da igreja venceu. Peça à sede para renovar o plano.';
+  }
+  return null;
+}
+
+function excluir_igreja(PDO $pdo, string $id): void {
+  if ($id === '' || $id === 'master') json_err('Igreja inválida.');
+  $st = $pdo->prepare('SELECT id, nome FROM tenants WHERE id = ?');
+  $st->execute([$id]);
+  $row = $st->fetch();
+  if (!$row) json_err('Igreja não encontrada.', 404);
+  $pdo->beginTransaction();
+  try {
+    $pdo->prepare('DELETE FROM sessions WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM users WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM app_state WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM pessoas_idx WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM escolas WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM turmas WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM atividades WHERE tenant_id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM signups WHERE tenant_id = ? OR upgrade_tenant_id = ?')->execute([$id, $id]);
+    $pdo->prepare('DELETE FROM tenants WHERE id = ?')->execute([$id]);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    json_err('Não foi possível excluir a igreja.', 500);
+  }
+}
+
+function relatorio_caixa_assinaturas(PDO $pdo): array {
+  $pagos = $pdo->query("SELECT * FROM signups WHERE status = 'pago' ORDER BY pago_em DESC, created_at DESC")->fetchAll();
+  $pendentes = $pdo->query("SELECT * FROM signups WHERE status = 'pendente' ORDER BY created_at DESC")->fetchAll();
+  $tenants = $pdo->query("SELECT id, nome, plano, pagamento, status, contratado_em, valido_ate, created_at FROM tenants WHERE id != 'master'")->fetchAll();
+  $hoje = time();
+  $mesAtual = gmdate('Y-m');
+  $mesPassado = gmdate('Y-m', strtotime('first day of last month'));
+  $mov = [];
+  $lancamentos = [];
+  $totalPago = 0.0;
+  $aReceber = 0.0;
+  foreach ($pagos as $s) {
+    $pl = plano_assinatura((string)($s['plano'] ?? 'igreja'));
+    $preco = (float)($s['preco'] ?? 0);
+    if ($preco <= 0) $preco = (float)$pl['preco'];
+    $quando = (string)($s['pago_em'] ?: $s['created_at']);
+    $t0 = strtotime($quando) ?: $hoje;
+    $parcelas = max(1, (int)$pl['parcelas']);
+    $origem = trim((string)($s['upgrade_tenant_id'] ?? '')) !== '' ? 'migracao' : 'site';
+    $totalPago += $preco;
+    $lancamentos[] = [
+      'id' => $s['id'],
+      'data' => gmdate('c', $t0),
+      'igreja' => $s['nome'],
+      'plano' => $pl['produto'],
+      'pagamento' => $parcelas > 1 ? 'parcelado' : 'avista',
+      'valor' => $preco,
+      'origem' => $origem,
+    ];
+    $parcela = round($preco / $parcelas, 2);
+    for ($i = 0; $i < $parcelas; $i++) {
+      $mes = gmdate('Y-m', strtotime('+' . $i . ' month', $t0) ?: $t0);
+      if (!isset($mov[$mes])) $mov[$mes] = ['mes' => $mes, 'avista' => 0.0, 'parcelado' => 0.0, 'total' => 0.0];
+      if ($parcelas > 1) $mov[$mes]['parcelado'] += $parcela;
+      else $mov[$mes]['avista'] += $preco;
+      $mov[$mes]['total'] += $parcelas > 1 ? $parcela : $preco;
+    }
+  }
+  foreach ($pendentes as $s) {
+    $pl = plano_assinatura((string)($s['plano'] ?? 'igreja'));
+    $aReceber += (float)$pl['preco'];
+  }
+  ksort($mov);
+  $fluxo = array_values($mov);
+  $esteMes = (float)($mov[$mesAtual]['total'] ?? 0);
+  $mesAnt = (float)($mov[$mesPassado]['total'] ?? 0);
+  $renovar = [];
+  $vencidas = 0;
+  $vencendo = 0;
+  foreach ($tenants as $t) {
+    $fim = strtotime((string)($t['valido_ate'] ?? '')) ?: 0;
+    if ($fim <= 0) continue;
+    $dias = (int)ceil(($fim - $hoje) / 86400);
+    $item = [
+      'id' => $t['id'],
+      'nome' => $t['nome'],
+      'plano' => produto_do_checkout((string)($t['plano'] ?? 'igreja')),
+      'validoAte' => $t['valido_ate'],
+      'dias' => $dias,
+      'preco' => preco_assinatura(produto_do_checkout((string)($t['plano'] ?? 'igreja')) === 'essencial' ? 'essencial' : 'igreja'),
+    ];
+    if ($dias < 0) {
+      $vencidas++;
+      $renovar[] = $item;
+    } elseif ($dias <= 30) {
+      $vencendo++;
+      $renovar[] = $item;
+    }
+  }
+  usort($renovar, static function ($a, $b) { return $a['dias'] <=> $b['dias']; });
+  return [
+    'totalPago' => round($totalPago, 2),
+    'esteMes' => round($esteMes, 2),
+    'mesPassado' => round($mesAnt, 2),
+    'aReceber' => round($aReceber, 2),
+    'pagos' => count($pagos),
+    'pendentes' => count($pendentes),
+    'vencidas' => $vencidas,
+    'vencendo' => $vencendo,
+    'fluxo' => $fluxo,
+    'lancamentos' => $lancamentos,
+    'renovar' => $renovar,
+  ];
 }

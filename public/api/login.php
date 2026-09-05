@@ -33,12 +33,14 @@ if (!$user || !password_verify($senha, $user['senha_hash'])) {
 }
 
 if (($user['papel'] ?? '') !== 'admin') {
-  $ts = $pdo->prepare('SELECT status FROM tenants WHERE id = ?');
+  $ts = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
   $ts->execute([(string)$user['tenant_id']]);
   $ten = $ts->fetch();
   if ($ten && (string)$ten['status'] === 'suspensa') {
     json_err('Esta igreja está suspensa. Fale com o suporte da EDB Total.', 403);
   }
+  $bloqueio = assinatura_bloqueia_papel($pdo, $user);
+  if ($bloqueio) json_err($bloqueio, 403);
 }
 
 $token = bin2hex(random_bytes(24));
@@ -59,4 +61,5 @@ json_ok([
     'turma' => $user['turma'] ?: null,
     'tenantId' => $user['tenant_id'],
   ],
+  'igreja' => igreja_publica($pdo, (string)$user['tenant_id']),
 ]);

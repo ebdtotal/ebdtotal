@@ -38,9 +38,6 @@ export function Barras({ itens, altura = 180 }: { itens: FatiaGrafico[]; altura?
             <text x={x + barW / 2} y={altura - 8} textAnchor="middle" fontSize="10" fill="#64748b">
               {item.label}
             </text>
-            <text x={x + barW / 2} y={base - h - 4} textAnchor="middle" fontSize="10" fill="#152238">
-              {item.valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-            </text>
           </g>
         )
       })}
@@ -97,7 +94,6 @@ export function barrasHtml(itens: FatiaGrafico[], altura = 180): string {
       return `<g>
         <rect x="${x}" y="${base - h}" width="${barW}" height="${h}" rx="4" fill="${item.cor}"/>
         <text x="${x + barW / 2}" y="${altura - 8}" text-anchor="middle" font-size="10" fill="#64748b">${escapeXml(item.label)}</text>
-        <text x="${x + barW / 2}" y="${base - h - 4}" text-anchor="middle" font-size="10" fill="#152238">${item.valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</text>
       </g>`
     })
     .join('')
