@@ -1,4 +1,4 @@
-# EDB Total
+# EBD Total
 
 Sistema de Escola Bíblica Dominical — cadastros, escolas, acessos, chamada e relatórios de presença, bíblias, revistas e ofertas.
 
@@ -67,8 +67,8 @@ A Apple exige um Mac só para **compilar**. Usamos um Mac na nuvem (Codemagic, ~
 
 1. A conta precisa ser do **Apple Developer Program pago** (não basta Apple ID grátis).
 2. [developer.apple.com/account](https://developer.apple.com/account) → Identifiers → `+` → App IDs → App → Bundle ID **Explicit**: `com.portalebd.app`.
-3. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Apps → Novo app: iOS, nome **EDB Total**, idioma Português (Brasil), bundle `com.portalebd.app`, SKU `ebdtotal`.
-4. **Chave de API** (só baixa uma vez): App Store Connect → Usuários e acesso → Integrações → App Store Connect API → `+` → nome `EDB Total CI`, acesso **Gerente de apps**. Anote **Issuer ID** e **Key ID**. Baixe o arquivo `.p8` e guarde fora do projeto.
+3. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Apps → Novo app: iOS, nome **EBD Total**, idioma Português (Brasil), bundle `com.portalebd.app`, SKU `ebdtotal`.
+4. **Chave de API** (só baixa uma vez): App Store Connect → Usuários e acesso → Integrações → App Store Connect API → `+` → nome `EBD Total CI`, acesso **Gerente de apps**. Anote **Issuer ID** e **Key ID**. Baixe o arquivo `.p8` e guarde fora do projeto.
 5. Preencha a ficha (texto abaixo). Criptografia: só HTTPS. Idade: 4+. Capturas: iPhone 6.7" e 6.1" — pode tirar no próprio iPhone, no site/app (o visual é o mesmo).
 
 **C. Codemagic (recomendado)**
@@ -80,7 +80,7 @@ A Apple exige um Mac só para **compilar**. Usamos um Mac na nuvem (Codemagic, ~
    - `APP_STORE_CONNECT_KEY_IDENTIFIER` = Key ID
    - `APP_STORE_CONNECT_ISSUER_ID` = Issuer ID
    - `APP_STORE_CONNECT_PRIVATE_KEY` = texto inteiro do `.p8` (incluindo BEGIN/END)
-5. Na aplicação: Check for configuration file → inicie o workflow **EDB Total iOS TestFlight**.
+5. Na aplicação: Check for configuration file → inicie o workflow **EBD Total iOS TestFlight**.
 6. Quando o build ficar **Waiting for review** no TestFlight, abra App Store Connect no Windows, complete a ficha e envie para a App Store.
 
 **D. GitHub Actions (alternativa)**
@@ -89,14 +89,14 @@ Secrets do repositório: `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_I
 
 ### Texto para a ficha da App Store
 
-- **Nome:** EDB Total
+- **Nome:** EBD Total
 - **Subtítulo:** Escola Bíblica Dominical
 - **Categoria:** Educação
 - **URL de suporte:** https://ebdtotal.com
 - **URL de privacidade:** https://ebdtotal.com/privacidade
 - **Descrição:**
 
-EDB Total é o sistema da Escola Bíblica Dominical da sua igreja: chamada, cadastros, lição, avaliação, avisos, certificados, financeiro e portal do aluno.
+EBD Total é o sistema da Escola Bíblica Dominical da sua igreja: chamada, cadastros, lição, avaliação, avisos, certificados, financeiro e portal do aluno.
 
 Na secretaria e na superintendência: presença, Bíblia, revista, oferta, turmas, congregações e relatório do domingo.
 

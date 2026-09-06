@@ -131,7 +131,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
         <a
-          href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EDB Total.')}
+          href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EBD Total.')}
           target="_blank"
           rel="noreferrer"
           className="mx-3 mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-emerald-300 hover:bg-white/8"
@@ -176,7 +176,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               })}
             </nav>
             <a
-              href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EDB Total.')}
+              href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EBD Total.')}
               target="_blank"
               rel="noreferrer"
               className="mx-3 mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-emerald-300"
@@ -209,7 +209,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </button>
             <Logo variant="mark" className="h-8 w-8" />
             <div className="truncate text-sm font-semibold text-navy">
-              {location.pathname.startsWith('/relatorio/') ? 'Relatório da filial' : 'EDB Total'}
+              {location.pathname.startsWith('/relatorio/') ? 'Relatório da filial' : 'EBD Total'}
             </div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
@@ -242,7 +242,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
 
       <a
-        href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EDB Total.')}
+        href={whatsappUrl(state.whatsapp, 'Olá, preciso de suporte no EBD Total.')}
         target="_blank"
         rel="noreferrer"
         className="fixed bottom-6 right-4 z-30 hidden h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg lg:flex"

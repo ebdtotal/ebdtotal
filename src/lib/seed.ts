@@ -366,7 +366,7 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
 }
 
 export function createSeedState(): AppState {
-  const s = createEmptyIgrejaState('EDB Total')
+  const s = createEmptyIgrejaState('EBD Total')
   return {
     ...s,
     usuarios: [{ id: 'u-master', nome: 'Itano', username: 'itano', senha: 'Itano1809@', papel: 'admin' }],

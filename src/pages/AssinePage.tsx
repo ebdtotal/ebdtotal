@@ -43,7 +43,7 @@ export function AssinePage() {
       <Link to="/" className="text-sm text-navy">
         ← Voltar
       </Link>
-      <h1 className="mt-4 text-2xl font-semibold text-navy">Assinar o EDB Total</h1>
+      <h1 className="mt-4 text-2xl font-semibold text-navy">Assinar o EBD Total</h1>
       <p className="mt-1 text-sm text-muted">
         Cadastre a igreja, pague o plano anual e receba o usuário e a senha no e-mail. O app libera as telas do plano
         escolhido.

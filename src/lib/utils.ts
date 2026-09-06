@@ -174,7 +174,7 @@ export function idadeEm(nasc: string, ref = new Date()): number | null {
   return idade
 }
 
-/** DDI 55 + DDD 98 + 981258852 — número do suporte do EDB Total. */
+/** DDI 55 + DDD 98 + 981258852 — número do suporte do EBD Total. */
 export const WHATSAPP_SUPORTE = '5598981258852'
 const WHATSAPP_PLACEHOLDER_ANTIGO = '5598984000000'
 

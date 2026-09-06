@@ -113,7 +113,7 @@ export function LoginPage() {
             <p className="mt-5 text-center text-sm text-muted">
               Ainda não é cliente?{' '}
               <Link to="/assine" className="font-semibold text-navy">
-                Assinar o EDB Total
+                Assinar o EBD Total
               </Link>
             </p>
             <p className="mt-2 text-center text-sm">

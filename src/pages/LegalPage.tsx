@@ -7,7 +7,7 @@ import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
 function Shell({ title, children }: { title: string; children: ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.add('site-publico')
-    document.title = `${title} — EDB Total`
+    document.title = `${title} — EBD Total`
     return () => document.documentElement.classList.remove('site-publico')
   }, [title])
 
@@ -17,7 +17,7 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-4">
           <Link to="/" className="flex items-center gap-2">
             <Logo variant="mark" className="h-9 w-9" />
-            <span className="font-semibold text-navy">EDB Total</span>
+            <span className="font-semibold text-navy">EBD Total</span>
           </Link>
           <div className="flex items-center gap-2">
             <TemaToggle compact />
@@ -33,7 +33,7 @@ function Shell({ title, children }: { title: string; children: ReactNode }) {
       </main>
       <footer className="border-t border-line bg-navy py-6 text-sm text-white">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4">
-          <span>EDB Total</span>
+          <span>EBD Total</span>
           <div className="flex flex-wrap gap-4">
             <Link to="/privacidade" className="text-gold">
               Privacidade
@@ -56,7 +56,7 @@ export function PrivacidadePage() {
     <Shell title="Política de privacidade">
       <p>Última atualização: 30 de agosto de 2026.</p>
       <p>
-        O EDB Total (<a className="font-medium text-navy underline" href="https://ebdtotal.com">ebdtotal.com</a>) é um sistema para
+        O EBD Total (<a className="font-medium text-navy underline" href="https://ebdtotal.com">ebdtotal.com</a>) é um sistema para
         igrejas administrarem a Escola Bíblica Dominical. Esta política descreve quais dados tratamos no site e no aplicativo
         para iPhone e Android.
       </p>
@@ -117,7 +117,7 @@ export function TermosPage() {
     <Shell title="Termos de uso">
       <p>Última atualização: 31 de agosto de 2026.</p>
       <p>
-        Ao criar uma igreja no EDB Total, assinar o plano ou entrar no aplicativo, você concorda com estes termos. O serviço é
+        Ao criar uma igreja no EBD Total, assinar o plano ou entrar no aplicativo, você concorda com estes termos. O serviço é
         oferecido para gestão da Escola Bíblica Dominical — chamada, cadastros, lição, avaliação, avisos, certificados e
         relatórios.
       </p>

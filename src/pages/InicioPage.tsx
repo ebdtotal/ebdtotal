@@ -24,7 +24,7 @@ export function InicioPage() {
       </p>
       <h1 className="mt-1 text-2xl font-semibold text-ink">Olá, {usuario?.nome.split(' ')[0]}</h1>
       <p className="mb-5 text-sm text-muted">
-        {usuario?.turma ? `Turma ${usuario.turma}` : escola?.nome ?? 'EDB Total'}
+        {usuario?.turma ? `Turma ${usuario.turma}` : escola?.nome ?? 'EBD Total'}
         {perfil === 'professor' ? ' · chamada da sua turma e preparação da aula' : null}
         {perfil === 'secretario' ? ' · lançamentos da congregação' : null}
         {perfil === 'superintendente' ? ' · chamada das classes, professores e metas da EBD' : null}

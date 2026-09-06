@@ -115,7 +115,7 @@ if ($method === 'PATCH') {
     $email = email_do_usuario($pdo, $user);
     $enviado = false;
     if ($email !== '') {
-      $enviado = enviar_email($email, 'Nova senha — EDB Total', email_senha_provisoria((string)$user['nome'], (string)$user['username'], $senha));
+      $enviado = enviar_email($email, 'Nova senha — EBD Total', email_senha_provisoria((string)$user['nome'], (string)$user['username'], $senha));
     }
     registrar_atividade($pdo, $id, autor_de($sess), 'resetou senha', (string)$user['username']);
     json_ok(['ok' => true, 'login' => ['username' => $user['username'], 'senha' => $senha, 'email' => $email], 'emailEnviado' => $enviado]);

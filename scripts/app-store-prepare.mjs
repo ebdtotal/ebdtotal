@@ -56,7 +56,7 @@ async function api(pathname, init = {}) {
 }
 
 const desc =
-  'EDB Total é o sistema da Escola Bíblica Dominical da sua igreja: chamada, cadastros, lição, avaliação, avisos, certificados, financeiro e portal do aluno.\n\nNa secretaria e na superintendência: presença, Bíblia, revista, oferta, turmas, congregações e relatório do domingo.\n\nNo celular do aluno: frequência, lição da semana, ranking da turma, atividades e certificados.\n\nCada igreja tem os dados separados. Funciona no site e no aplicativo.'
+  'EBD Total é o sistema da Escola Bíblica Dominical da sua igreja: chamada, cadastros, lição, avaliação, avisos, certificados, financeiro e portal do aluno.\n\nNa secretaria e na superintendência: presença, Bíblia, revista, oferta, turmas, congregações e relatório do domingo.\n\nNo celular do aluno: frequência, lição da semana, ranking da turma, atividades e certificados.\n\nCada igreja tem os dados separados. Funciona no site e no aplicativo.'
 
 const apps = await api(`/apps?filter[bundleId]=${BUNDLE_ID}`)
 const app = apps.data?.[0]
@@ -84,7 +84,7 @@ if (!version) {
     body: JSON.stringify({
       data: {
         type: 'appStoreVersions',
-        attributes: { platform: 'IOS', versionString: '1.0', releaseType: 'AFTER_APPROVAL', copyright: '2026 EDB Total' },
+        attributes: { platform: 'IOS', versionString: '1.0', releaseType: 'AFTER_APPROVAL', copyright: '2026 EBD Total' },
         relationships: { app: { data: { type: 'apps', id: appId } } },
       },
     }),
@@ -146,7 +146,7 @@ if (info) {
           type: 'appInfoLocalizations',
           id: infoLoc.id,
           attributes: {
-            name: 'EDB Total',
+            name: 'EBD Total',
             subtitle: 'Escola Bíblica Dominical',
             privacyPolicyUrl: 'https://ebdtotal.com/privacidade',
           },

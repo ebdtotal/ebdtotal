@@ -112,7 +112,7 @@ export function MasterDemosPage() {
                     <div className="flex flex-col items-start gap-1">
                       {d.telefone ? (
                         <a
-                          href={whatsappUrl(d.telefone, `Olá ${d.nome}, sobre a demonstração do EDB Total para ${d.igreja}.`)}
+                          href={whatsappUrl(d.telefone, `Olá ${d.nome}, sobre a demonstração do EBD Total para ${d.igreja}.`)}
                           target="_blank"
                           rel="noreferrer"
                           className="text-sm font-semibold text-emerald-700 hover:underline"

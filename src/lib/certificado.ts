@@ -95,7 +95,7 @@ export function htmlCertificado(state: AppState, cert: Certificado, pessoa: Pess
         <div class="ass"><div class="linha"></div><div>${escapeHtml(modelo.assinatura1)}</div><div class="cargo">${escapeHtml(modelo.cargo1)}</div></div>
         <div class="ass"><div class="linha"></div><div>${escapeHtml(modelo.assinatura2)}</div><div class="cargo">${escapeHtml(modelo.cargo2)}</div></div>
       </div>
-      <p class="rodape">EDB Total · ${escapeHtml(dados.data)}</p>
+      <p class="rodape">EBD Total · ${escapeHtml(dados.data)}</p>
     </div>
   </div>
 </body>

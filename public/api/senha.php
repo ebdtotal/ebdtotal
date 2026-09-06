@@ -32,7 +32,7 @@ if ($acao === 'esqueci') {
   $senha = senha_forte();
   gravar_senha_usuario($pdo, $user, $senha);
   registrar_atividade($pdo, (string)$user['tenant_id'], autor_de($user), 'pediu senha', 'Senha provisória por e-mail');
-  $ok = enviar_email($email, 'Senha provisória — EDB Total', email_senha_provisoria((string)$user['nome'], (string)$user['username'], $senha));
+  $ok = enviar_email($email, 'Senha provisória — EBD Total', email_senha_provisoria((string)$user['nome'], (string)$user['username'], $senha));
   if (!$ok) json_err('Não foi possível enviar o e-mail agora. Tente de novo em alguns minutos.');
   json_ok(['ok' => true, 'mensagem' => 'Enviamos uma senha provisória para ' . $email . '.']);
 }

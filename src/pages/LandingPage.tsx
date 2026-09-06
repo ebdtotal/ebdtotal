@@ -70,7 +70,7 @@ export function LandingPage() {
     return () => document.documentElement.classList.remove('site-publico')
   }, [])
 
-  const assinar = whatsappUrl(WHATSAPP_SUPORTE, 'Olá! Quero assinar o EDB Total para a minha igreja.')
+  const assinar = whatsappUrl(WHATSAPP_SUPORTE, 'Olá! Quero assinar o EBD Total para a minha igreja.')
 
   function abrirDemo() {
     setErro(null)
@@ -193,7 +193,7 @@ export function LandingPage() {
           <div className="relative -mx-2 sm:mx-0 md:-mr-4 lg:-mr-8">
             <img
               src="/hero-devices.jpg"
-              alt="EDB Total no computador e no celular"
+              alt="EBD Total no computador e no celular"
               className="relative z-[1] mx-auto w-full max-w-xl object-contain object-right drop-shadow-sm md:max-w-none"
               width={507}
               height={582}
@@ -297,7 +297,7 @@ export function LandingPage() {
             <CalendarDays className="shrink-0 text-gold" size={28} strokeWidth={1.5} />
             <div>
               <p className="text-sm font-bold">Agende uma demonstração gratuita</p>
-              <p className="text-xs text-white/60">Conheça o EDB Total com a sua equipe.</p>
+              <p className="text-xs text-white/60">Conheça o EBD Total com a sua equipe.</p>
             </div>
           </div>
           <button
@@ -319,7 +319,7 @@ export function LandingPage() {
 
       <footer className="border-t border-white/10 bg-navy pb-8 text-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pt-4 text-xs text-white/55">
-          <span>EDB Total · Escola Bíblica Dominical</span>
+          <span>EBD Total · Escola Bíblica Dominical</span>
           <div className="flex flex-wrap items-center gap-4">
             <Link to="/login" className="hover:text-gold">
               Entrar

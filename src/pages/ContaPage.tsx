@@ -111,7 +111,7 @@ export function ContaPage() {
           className="mt-3 inline-flex rounded-xl bg-navy px-4 py-2 text-sm font-semibold text-white"
           href={whatsappUrl(
             WHATSAPP_SUPORTE,
-            `Quero excluir minha conta no EDB Total. Usuário: ${usuario?.username ?? ''}. Nome: ${usuario?.nome ?? ''}.`,
+            `Quero excluir minha conta no EBD Total. Usuário: ${usuario?.username ?? ''}. Nome: ${usuario?.nome ?? ''}.`,
           )}
           target="_blank"
           rel="noreferrer"

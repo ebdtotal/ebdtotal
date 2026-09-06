@@ -226,7 +226,7 @@ function migrate(PDO $pdo): void {
     $tid = 'master';
     $now = gmdate('c');
     $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,status,username_admin,created_at) VALUES (?,?,?,?,?,?,?)')
-      ->execute([$tid, 'EDB Total', '', 'Itano', 'ativa', 'itano', $now]);
+      ->execute([$tid, 'EBD Total', '', 'Itano', 'ativa', 'itano', $now]);
     $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel) VALUES (?,?,?,?,?,?)')
       ->execute(['u-master', $tid, 'Itano', 'itano', password_hash('Itano1809@', PASSWORD_DEFAULT), 'admin']);
   }
@@ -327,7 +327,7 @@ function auth(): array {
   $row = $st->fetch();
   if (!$row || (int)$row['expires_at'] < time()) json_err('Sessão expirada. Entre novamente.', 401);
   if (($row['papel'] ?? '') !== 'admin' && (string)($row['tenant_status'] ?? '') === 'suspensa') {
-    json_err('Acesso suspenso. Fale com o suporte da EDB Total.', 403);
+    json_err('Acesso suspenso. Fale com o suporte da EBD Total.', 403);
   }
   return $row;
 }
@@ -522,7 +522,7 @@ function enviar_email(string $para, string $assunto, string $texto): bool {
   if (!email_valido($para)) return false;
   $mail = cfg()['mail'] ?? [];
   $from = (string)($mail['from'] ?? 'naoresponda@ebdtotal.com');
-  $fromName = (string)($mail['from_name'] ?? 'EDB Total');
+  $fromName = (string)($mail['from_name'] ?? 'EBD Total');
   $reply = (string)($mail['reply'] ?? $from);
   $encoded = '=?UTF-8?B?' . base64_encode($assunto) . '?=';
   $headers = [
@@ -530,20 +530,20 @@ function enviar_email(string $para, string $assunto, string $texto): bool {
     'Content-Type: text/plain; charset=UTF-8',
     'From: ' . sprintf('%s <%s>', $fromName, $from),
     'Reply-To: ' . $reply,
-    'X-Mailer: EDB Total',
+    'X-Mailer: EBD Total',
   ];
   return @mail($para, $encoded, $texto, implode("\r\n", $headers), '-f ' . $from);
 }
 
 function email_acesso(string $nome, string $igreja, string $username, string $senha): string {
   return "Olá, {$nome}.\n\n"
-    . "Seu acesso ao EDB Total da igreja {$igreja} está pronto.\n\n"
+    . "Seu acesso ao EBD Total da igreja {$igreja} está pronto.\n\n"
     . "Site: https://ebdtotal.com/login\n"
     . "Usuário: {$username}\n"
     . "Senha: {$senha}\n\n"
     . "Guarde estes dados. Depois de entrar, você pode alterar a senha em Minha conta.\n"
     . "Esta mensagem é automática (naoresponda@ebdtotal.com). Não responda este e-mail.\n\n"
-    . "EDB Total\n";
+    . "EBD Total\n";
 }
 
 function email_senha_provisoria(string $nome, string $username, string $senha): string {
@@ -552,7 +552,7 @@ function email_senha_provisoria(string $nome, string $username, string $senha): 
     . "Senha provisória: {$senha}\n\n"
     . "Entre em https://ebdtotal.com/login e altere esta senha em Minha conta.\n"
     . "Se você não pediu isso, fale com a sede da sua igreja.\n\n"
-    . "EDB Total\n";
+    . "EBD Total\n";
 }
 
 function email_do_usuario(PDO $pdo, array $user): string {
@@ -735,11 +735,11 @@ function plano_assinatura(string $plano): array {
   ];
   $id = plano_id($plano);
   $titulos = [
-    'essencial' => 'EDB Total — Essencial à vista',
-    'essencial12' => 'EDB Total — Essencial (até 12x)',
-    'igreja' => 'EDB Total — Igreja à vista',
-    'igreja12' => 'EDB Total — Igreja (até 12x)',
-    'teste' => 'EDB Total — teste de pagamento',
+    'essencial' => 'EBD Total — Essencial à vista',
+    'essencial12' => 'EBD Total — Essencial (até 12x)',
+    'igreja' => 'EBD Total — Igreja à vista',
+    'igreja12' => 'EBD Total — Igreja (até 12x)',
+    'teste' => 'EBD Total — teste de pagamento',
   ];
   $parcelas = ($id === 'essencial12' || $id === 'igreja12') ? 12 : 1;
   $preco = $precos[$id] ?? $precos['igreja'];
@@ -750,7 +750,7 @@ function plano_assinatura(string $plano): array {
     'produto' => $ent['produto'],
     'preco' => $preco,
     'parcelas' => $parcelas,
-    'titulo' => $titulos[$id] ?? 'EDB Total — plano anual',
+    'titulo' => $titulos[$id] ?? 'EBD Total — plano anual',
     'pessoas' => $ent['pessoas'],
   ];
 }
@@ -811,8 +811,8 @@ function mp_criar_preferencia(string $sid, string $igreja, string $responsavel, 
   $res = mp_api('POST', '/checkout/preferences', [
     'items' => [[
       'id' => 'ebd-' . (string)($plano['id'] ?? 'avista'),
-      'title' => (string)($plano['titulo'] ?? 'EDB Total — plano anual'),
-      'description' => 'Acesso da igreja ' . $igreja . ' (plano ' . (string)($plano['titulo'] ?? 'EDB Total') . ')',
+      'title' => (string)($plano['titulo'] ?? 'EBD Total — plano anual'),
+      'description' => 'Acesso da igreja ' . $igreja . ' (plano ' . (string)($plano['titulo'] ?? 'EBD Total') . ')',
       'quantity' => 1,
       'currency_id' => 'BRL',
       'unit_price' => round((float)$plano['preco'], 2),
@@ -937,7 +937,7 @@ function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
 
   $emailEnviado = enviar_email(
     $email,
-    'Seu acesso ao EDB Total',
+    'Seu acesso ao EBD Total',
     email_acesso($responsavel, $nome, $username, $senha),
   );
 

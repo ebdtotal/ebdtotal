@@ -168,7 +168,7 @@ export function ConfiguracoesPage() {
       <div className="mt-6 flex justify-end">
         <GhostButton onClick={resetDemo}>Restaurar dados de demonstração</GhostButton>
       </div>
-      <p className="mt-8 text-right text-xs text-muted">Copyright © EDB Total {new Date().getFullYear()}</p>
+      <p className="mt-8 text-right text-xs text-muted">Copyright © EBD Total {new Date().getFullYear()}</p>
 
       <Modal open={novoSetor} title="Novo setor" onClose={() => setNovoSetor(false)}>
         <Field label="Nome">

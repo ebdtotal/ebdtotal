@@ -100,7 +100,7 @@ export function IphoneShell() {
             className="block rounded-[44px] border-0 bg-[#eef1f5]"
           />
         </div>
-        <p className="mt-3 text-center text-[11px] tracking-wide text-white/45">iPhone 16 · EDB Total</p>
+        <p className="mt-3 text-center text-[11px] tracking-wide text-white/45">iPhone 16 · EBD Total</p>
       </div>
     </div>
   )

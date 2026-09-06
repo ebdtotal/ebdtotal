@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.portalebd.app',
-  appName: 'EDB Total',
+  appName: 'EBD Total',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'automatic',
-    scheme: 'EDBTotal',
+    scheme: 'EBDTotal',
   },
   plugins: {
     CapacitorHttp: {

@@ -83,7 +83,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
               <Menu size={26} strokeWidth={2.75} />
             </button>
             <Logo variant="mark" className="h-8 w-8" />
-            <div className="text-sm font-semibold text-navy">EDB Total</div>
+            <div className="text-sm font-semibold text-navy">EBD Total</div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <TemaToggle compact />

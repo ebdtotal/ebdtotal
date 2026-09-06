@@ -37,7 +37,7 @@ if (($user['papel'] ?? '') !== 'admin') {
   $ts->execute([(string)$user['tenant_id']]);
   $ten = $ts->fetch();
   if ($ten && (string)$ten['status'] === 'suspensa') {
-    json_err('Esta igreja está suspensa. Fale com o suporte da EDB Total.', 403);
+    json_err('Esta igreja está suspensa. Fale com o suporte da EBD Total.', 403);
   }
   $bloqueio = assinatura_bloqueia_papel($pdo, $user);
   if ($bloqueio) json_err($bloqueio, 403);

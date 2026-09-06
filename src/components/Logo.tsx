@@ -8,7 +8,7 @@ export function Logo({ variant = 'full', className = '' }: LogoProps) {
   return (
     <img
       src={mark ? '/icon-192.png' : '/logo.png'}
-      alt="EDB Total"
+      alt="EBD Total"
       className={`object-contain ${mark ? 'h-8 w-8' : 'h-24 w-auto'} ${className}`}
     />
   )

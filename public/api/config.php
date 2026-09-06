@@ -1,6 +1,6 @@
 <?php
 /**
- * Banco e e-mail do EDB Total.
+ * Banco e e-mail do EBD Total.
  * Padrão: SQLite (arquivo em api/data/) — funciona na HostGator sem criar MySQL.
  * Para MySQL, defina EBD_DB=mysql e preencha os campos abaixo.
  * O From precisa ser um endereço do domínio hospedado (ebdtotal.com).
@@ -14,7 +14,7 @@ return [
     'pass' => getenv('EBD_MYSQL_PASS') ?: '',
   ],
   'mail' => [
-    'from_name' => getenv('EBD_MAIL_FROM_NAME') ?: 'EDB Total',
+    'from_name' => getenv('EBD_MAIL_FROM_NAME') ?: 'EBD Total',
     'from' => getenv('EBD_MAIL_FROM') ?: 'naoresponda@ebdtotal.com',
     'reply' => getenv('EBD_MAIL_REPLY') ?: 'naoresponda@ebdtotal.com',
   ],
