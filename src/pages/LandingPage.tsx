@@ -104,7 +104,7 @@ export function LandingPage() {
             <Logo variant="mark" className="h-10 w-10 shrink-0" />
             <span className="leading-tight">
               <span className="block text-[15px] font-bold tracking-wide text-navy">
-                EBD <span className="text-gold">TOTAL</span>
+                EBD <span className="text-gold">Total</span>
               </span>
               <span className="hidden text-[10px] text-navy/55 sm:block">Sua EBD completa em um só lugar.</span>
             </span>
@@ -262,7 +262,7 @@ export function LandingPage() {
             <p className="mt-1 text-sm text-muted">Escolha o plano ideal para sua igreja.</p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <PlanoCard
-                nome="EBD TOTAL ESSENCIAL"
+                nome="EBD Total Essencial"
                 destaque={false}
                 ideal="Ideal para igrejas menores"
                 itens={PRODUTOS.essencial.itens}
@@ -271,7 +271,7 @@ export function LandingPage() {
                 to="/assine?plano=essencial"
               />
               <PlanoCard
-                nome="EBD TOTAL IGREJA"
+                nome="EBD Total Igreja"
                 destaque
                 ideal="Ideal para igrejas maiores"
                 itens={PRODUTOS.igreja.itens}

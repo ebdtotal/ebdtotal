@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>pt-BR</string>
 	<key>CFBundleDisplayName</key>
-        <string>EDB Total</string>
+	<string>EDB Total</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>pt-BR</string>
