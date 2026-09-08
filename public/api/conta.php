@@ -57,4 +57,33 @@ if ($method === 'POST' && $acao === 'migrar') {
   json_ok($out);
 }
 
+if ($method === 'POST' && $acao === 'excluir_conta') {
+  $uid = (string)($sess['user_id'] ?? '');
+  $username = (string)($sess['username'] ?? '');
+  if ($uid === '' || $papel === 'admin' || $tid === 'master') {
+    json_err('Esta conta não pode ser excluída por aqui. Fale com o suporte.', 403);
+  }
+  $confirma = strtoupper(trim((string)($in['confirma'] ?? '')));
+  if ($confirma !== 'EXCLUIR') {
+    json_err('Digite EXCLUIR para confirmar a exclusão da conta.');
+  }
+
+  // Conta sede: encerra a igreja e remove usuários/sessões/dados.
+  if ($papel === 'sede' || ($papel === 'superintendente' && trim((string)($sess['escola_id'] ?? '')) === '')) {
+    $pdo->prepare('DELETE FROM sessions WHERE tenant_id = ?')->execute([$tid]);
+    $pdo->prepare('DELETE FROM users WHERE tenant_id = ?')->execute([$tid]);
+    $pdo->prepare('DELETE FROM app_state WHERE tenant_id = ?')->execute([$tid]);
+    $pdo->prepare("UPDATE tenants SET status='excluida', email='', telefone='', responsavel='Conta excluída', username_admin='' WHERE id=?")
+      ->execute([$tid]);
+    registrar_atividade($pdo, $tid, autor_de($sess), 'excluiu conta', 'Igreja e acessos removidos pelo app');
+    json_ok(['ok' => true, 'escopo' => 'igreja']);
+  }
+
+  // Demais papéis: remove só o usuário e as sessões dele.
+  $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$uid]);
+  $pdo->prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?')->execute([$uid, $tid]);
+  registrar_atividade($pdo, $tid, autor_de($sess), 'excluiu conta', 'Usuário ' . $username . ' removido pelo app');
+  json_ok(['ok' => true, 'escopo' => 'usuario']);
+}
+
 json_err('Método inválido', 405);

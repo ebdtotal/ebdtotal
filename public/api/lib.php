@@ -234,17 +234,50 @@ function migrate(PDO $pdo): void {
 }
 
 function garantir_igreja_revisao(PDO $pdo): void {
-  $st = $pdo->prepare('SELECT id FROM users WHERE username = ?');
-  $st->execute(['apple.review']);
-  if ($st->fetch()) return;
   $tid = 'igreja-revisao-apple';
   $uid = 'u-apple-review';
   $now = gmdate('c');
   $senha = 'ReviewEbd2026!';
-  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
-    ->execute([$tid, 'Igreja revisão App Store', 'São Luís', 'Revisão Apple', 'revisao@ebdtotal.com', '98981258852', 'ativa', 'apple.review', $now]);
-  $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,escola_id,email) VALUES (?,?,?,?,?,?,?,?)')
-    ->execute([$uid, $tid, 'Revisão Apple', 'apple.review', password_hash($senha, PASSWORD_DEFAULT), 'sede', 'sede', 'revisao@ebdtotal.com']);
+  $valido = gmdate('c', time() + 86400 * 730);
+
+  $st = $pdo->prepare('SELECT id, status, valido_ate FROM tenants WHERE id = ?');
+  $st->execute([$tid]);
+  $ten = $st->fetch();
+  if ($ten) {
+    $pdo->prepare("UPDATE tenants SET nome=?, cidade=?, responsavel=?, email=?, telefone=?, status='ativa', username_admin=?, plano='igreja', pagamento='avista', valido_ate=? WHERE id=?")
+      ->execute(['Igreja revisão App Store', 'São Luís', 'Revisão Apple', 'revisao@ebdtotal.com', '98981258852', 'apple.review', $valido, $tid]);
+  } else {
+    $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at,plano,pagamento,contratado_em,valido_ate) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      ->execute([$tid, 'Igreja revisão App Store', 'São Luís', 'Revisão Apple', 'revisao@ebdtotal.com', '98981258852', 'ativa', 'apple.review', $now, 'igreja', 'avista', $now, $valido]);
+  }
+
+  $st = $pdo->prepare('SELECT id, senha_hash FROM users WHERE username = ?');
+  $st->execute(['apple.review']);
+  $user = $st->fetch();
+  if ($user) {
+    if (!password_verify($senha, (string)$user['senha_hash'])) {
+      $pdo->prepare("UPDATE users SET id=?, tenant_id=?, nome=?, senha_hash=?, papel='sede', escola_id='sede', email=? WHERE username=?")
+        ->execute([$uid, $tid, 'Revisão Apple', password_hash($senha, PASSWORD_DEFAULT), 'revisao@ebdtotal.com', 'apple.review']);
+    } else {
+      $pdo->prepare("UPDATE users SET tenant_id=?, nome=?, papel='sede', escola_id='sede', email=? WHERE username=?")
+        ->execute([$tid, 'Revisão Apple', 'revisao@ebdtotal.com', 'apple.review']);
+    }
+  } else {
+    $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,escola_id,email) VALUES (?,?,?,?,?,?,?,?)')
+      ->execute([$uid, $tid, 'Revisão Apple', 'apple.review', password_hash($senha, PASSWORD_DEFAULT), 'sede', 'sede', 'revisao@ebdtotal.com']);
+  }
+
+  $stState = $pdo->prepare('SELECT json FROM app_state WHERE tenant_id = ?');
+  $stState->execute([$tid]);
+  $rowState = $stState->fetch();
+  $json = $rowState ? (string)($rowState['json'] ?? '') : '';
+  $temDados = false;
+  if ($json !== '') {
+    $parsed = json_decode($json, true);
+    $temDados = is_array($parsed) && !empty($parsed['escolas']) && !empty($parsed['pessoas']);
+  }
+  if ($temDados) return;
+
   $seed = [
     'escolas' => [[
       'id' => 'sede',
@@ -309,8 +342,13 @@ function garantir_igreja_revisao(PDO $pdo): void {
     'whatsapp' => '5598981258852',
     'sessaoId' => null,
   ];
-  $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
-    ->execute([$tid, json_encode($seed, JSON_UNESCAPED_UNICODE), $now]);
+  if ($rowState) {
+    $pdo->prepare('UPDATE app_state SET json=?, updated_at=? WHERE tenant_id=?')
+      ->execute([json_encode($seed, JSON_UNESCAPED_UNICODE), $now, $tid]);
+  } else {
+    $pdo->prepare('INSERT INTO app_state (tenant_id, json, updated_at) VALUES (?,?,?)')
+      ->execute([$tid, json_encode($seed, JSON_UNESCAPED_UNICODE), $now]);
+  }
   sync_cadastros($pdo, $tid, $seed);
 }
 
@@ -1638,7 +1676,7 @@ function deduplicar_licoes(array $licoes): array {
 }
 
 function tenant_plano_vencido(PDO $pdo, string $tid): bool {
-  if ($tid === '' || $tid === 'master') return false;
+  if ($tid === '' || $tid === 'master' || $tid === 'igreja-revisao-apple') return false;
   $st = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
   $st->execute([$tid]);
   $t = $st->fetch();
@@ -1662,7 +1700,7 @@ function assinatura_bloqueia_papel(PDO $pdo, array $sess): ?string {
   $papel = (string)($sess['papel'] ?? '');
   if ($papel !== 'aluno' && $papel !== 'professor') return null;
   $tid = (string)($sess['tenant_id'] ?? '');
-  if ($tid === '' || $tid === 'master') return null;
+  if ($tid === '' || $tid === 'master' || $tid === 'igreja-revisao-apple') return null;
   $st = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
   $st->execute([$tid]);
   $t = $st->fetch();

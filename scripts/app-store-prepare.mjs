@@ -168,7 +168,7 @@ try {
     demoAccountPassword: 'ReviewEbd2026!',
     demoAccountRequired: true,
     notes:
-      'App da Escola Bíblica Dominical. Entre com apple.review / ReviewEbd2026!. A API vive em https://ebdtotal.com. Criptografia apenas HTTPS. Sem compras no app.',
+      'EBD Total — Sunday Bible School management for Brazilian churches.\n\nDEMO LOGIN (required):\nUsername: apple.review\nPassword: ReviewEbd2026!\nAPI: https://ebdtotal.com\n\nHow to review:\n1) Open app → login with the demo account\n2) Use Chamada (attendance), Cadastros, Relatório, Minha conta\n3) Account deletion is in-app: Minha conta → type EXCLUIR → Excluir minha conta agora\n\nNo In-App Purchases. No tracking SDKs. HTTPS only. Same features worldwide (pt-BR).',
   }
   if (detailId) {
     await api(`/appStoreReviewDetails/${detailId}`, {

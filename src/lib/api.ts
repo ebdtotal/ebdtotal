@@ -331,6 +331,13 @@ export async function apiMigrarPlano(pagamento: 'avista' | 'parcelado') {
   })
 }
 
+export async function apiExcluirConta(confirma: string) {
+  return req<{ ok: boolean; escopo: 'igreja' | 'usuario' }>('conta.php', {
+    method: 'POST',
+    body: JSON.stringify({ acao: 'excluir_conta', confirma }),
+  })
+}
+
 export async function apiConfirmarSignup(id: string) {
   return req<{ ok: boolean; login?: { username: string; senha: string; email: string }; emailEnviado?: boolean }>(
     'clientes.php',

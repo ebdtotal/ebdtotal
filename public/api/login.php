@@ -36,6 +36,9 @@ if (($user['papel'] ?? '') !== 'admin') {
   $ts = $pdo->prepare('SELECT status, valido_ate FROM tenants WHERE id = ?');
   $ts->execute([(string)$user['tenant_id']]);
   $ten = $ts->fetch();
+  if ($ten && (string)$ten['status'] === 'excluida') {
+    json_err('Esta conta foi excluída.', 403);
+  }
   if ($ten && (string)$ten['status'] === 'suspensa') {
     json_err('Esta igreja está suspensa. Fale com o suporte da EBD Total.', 403);
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Field, GhostButton, PrimaryButton, inputClass } from '../components/ui'
-import { apiMigrarPlano, apiSalvarIgreja } from '../lib/api'
+import { apiExcluirConta, apiMigrarPlano, apiSalvarIgreja } from '../lib/api'
 import {
   checkoutDo,
   formatarBRL,
@@ -15,15 +15,19 @@ import { useStore } from '../lib/store'
 import { formatDateBR, WHATSAPP_SUPORTE, whatsappUrl } from '../lib/utils'
 
 export function ContaPage() {
-  const { usuario, alterarSenha, igreja, setIgreja } = useStore()
+  const { usuario, alterarSenha, igreja, setIgreja, logout } = useStore()
   const [atual, setAtual] = useState('')
   const [nova, setNova] = useState('')
   const [confirma, setConfirma] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [excluirConfirma, setExcluirConfirma] = useState('')
+  const [excluirErro, setExcluirErro] = useState<string | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
   const podeIgreja =
     usuario?.papel === 'sede' || (usuario?.papel === 'superintendente' && !usuario.escolaId)
+  const podeExcluir = usuario?.papel !== 'admin'
 
   return (
     <div>
@@ -98,27 +102,48 @@ export function ContaPage() {
         </form>
       </section>
 
-      <section className="mt-5 max-w-md rounded-xl bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold">Excluir conta</h2>
-        <p className="text-sm text-muted">
-          Para apagar o acesso e os dados da igreja, envie o pedido pelo WhatsApp. Fazemos a exclusão em até 7 dias. Leia a{' '}
-          <Link to="/privacidade" className="font-medium text-navy underline">
-            política de privacidade
-          </Link>
-          .
-        </p>
-        <a
-          className="mt-3 inline-flex rounded-xl bg-navy px-4 py-2 text-sm font-semibold text-white"
-          href={whatsappUrl(
-            WHATSAPP_SUPORTE,
-            `Quero excluir minha conta no EBD Total. Usuário: ${usuario?.username ?? ''}. Nome: ${usuario?.nome ?? ''}.`,
-          )}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Pedir exclusão no WhatsApp
-        </a>
-      </section>
+      {podeExcluir ? (
+        <section className="mt-5 max-w-md rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="mb-2 text-lg font-semibold text-red-700">Excluir conta</h2>
+          <p className="text-sm text-muted">
+            A exclusão é feita neste aplicativo. Se você for o acesso principal da igreja, removemos o login e os dados
+            da igreja. Digite <span className="font-semibold text-ink">EXCLUIR</span> para confirmar. Leia a{' '}
+            <Link to="/privacidade" className="font-medium text-navy underline">
+              política de privacidade
+            </Link>
+            .
+          </p>
+          <Field label="Confirmação">
+            <input
+              className={inputClass}
+              value={excluirConfirma}
+              onChange={(e) => setExcluirConfirma(e.target.value)}
+              placeholder="Digite EXCLUIR"
+              autoComplete="off"
+            />
+          </Field>
+          {excluirErro ? <p className="mt-2 text-sm text-red-600">{excluirErro}</p> : null}
+          <button
+            type="button"
+            disabled={excluindo || excluirConfirma.trim().toUpperCase() !== 'EXCLUIR'}
+            className="mt-3 inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            onClick={() => {
+              setExcluirErro(null)
+              setExcluindo(true)
+              void apiExcluirConta(excluirConfirma)
+                .then(() => {
+                  logout()
+                })
+                .catch((err: Error) => {
+                  setExcluindo(false)
+                  setExcluirErro(err.message || 'Não foi possível excluir a conta.')
+                })
+            }}
+          >
+            {excluindo ? 'Excluindo…' : 'Excluir minha conta agora'}
+          </button>
+        </section>
+      ) : null}
     </div>
   )
 }
