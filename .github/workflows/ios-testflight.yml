@@ -1,4 +1,4 @@
-# Envia o EDB Total ao TestFlight num Mac da GitHub (não precisa de Mac local).
+# Envia o EBD Total ao TestFlight num Mac da GitHub (não precisa de Mac local).
 # Dispare em Actions → iOS TestFlight → Run workflow.
 name: iOS TestFlight
 

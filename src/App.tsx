@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
-import { Navigate, Route, Routes, useLocation, Link } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useParams, Link } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AppLayout } from './components/AppLayout'
 import { PortalLayout } from './components/PortalLayout'
+import { ativarAfiliadoDaVisita } from './lib/afiliado'
 import { ehAppNativo } from './lib/native'
 import { destinoInicial, perfilDe, rotaMaster, rotaPermitida } from './lib/perfis'
 import { assinaturaVigente, papelRestritoSemAssinatura, rotaLiberadaNoPlano } from './lib/planos'
@@ -29,6 +30,7 @@ import { LoginPage } from './pages/LoginPage'
 import { MasterPage } from './pages/MasterPage'
 import { MasterAssinaturasPage } from './pages/MasterAssinaturasPage'
 import { MasterDemosPage } from './pages/MasterDemosPage'
+import { MasterAfiliadosPage } from './pages/MasterAfiliadosPage'
 import { MetasPage } from './pages/MetasPage'
 import { PainelPage } from './pages/PainelPage'
 import { PortalAlunoPage } from './pages/PortalAlunoPage'
@@ -220,6 +222,7 @@ export default function App() {
       <Route path="/assine/sucesso" element={<AssineRetornoPage tipo="sucesso" />} />
       <Route path="/assine/falha" element={<AssineRetornoPage tipo="falha" />} />
       <Route path="/assine/pendente" element={<AssineRetornoPage tipo="pendente" />} />
+      <Route path="/a/:codigo" element={<AfiliadoRedirect />} />
       <Route path="/privacidade" element={<PrivacidadePage />} />
       <Route path="/termos" element={<TermosPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -253,9 +256,29 @@ export default function App() {
       <Route path="/master" element={<Staff><MasterPage /></Staff>} />
       <Route path="/master/assinaturas" element={<Staff><MasterAssinaturasPage /></Staff>} />
       <Route path="/master/demos" element={<Staff><MasterDemosPage /></Staff>} />
+      <Route path="/master/afiliados" element={<Staff><MasterAfiliadosPage /></Staff>} />
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
   )
+}
+
+function AfiliadoRedirect() {
+  const { codigo } = useParams()
+  const [pronto, setPronto] = useState(false)
+  useEffect(() => {
+    const c = (codigo || '').trim()
+    if (!c) {
+      setPronto(true)
+      return
+    }
+    void ativarAfiliadoDaVisita(`?ref=${encodeURIComponent(c)}`, `/a/${c}`).finally(() => setPronto(true))
+  }, [codigo])
+  if (!pronto) {
+    return <div className="flex min-h-dvh items-center justify-center text-sm text-muted">Abrindo…</div>
+  }
+  const safe = (codigo || '').trim()
+  if (!safe) return <Navigate to="/" replace />
+  return <Navigate to={`/?ref=${encodeURIComponent(safe)}`} replace />
 }
 
 function HomeRedirect() {

@@ -125,6 +125,7 @@ export const NAV_MASTER: NavItem[] = [
   { to: '/master', label: 'Painel' },
   { to: '/master/assinaturas', label: 'Assinaturas' },
   { to: '/master/demos', label: 'Demos' },
+  { to: '/master/afiliados', label: 'Afiliados' },
   { to: '/atividades', label: 'Atividades' },
   { to: '/conta', label: 'Minha conta' },
 ]
@@ -146,7 +147,7 @@ export function rotaPermitida(perfil: PerfilApp, pathname: string): boolean {
   if (pathname.startsWith('/portal')) return perfil === 'aluno'
   if (pathname === '/conta') return true
   if (pathname === '/master') return false
-  if (pathname === '/' || pathname.startsWith('/assine') || pathname === '/privacidade' || pathname === '/termos') return true
+  if (pathname === '/' || pathname.startsWith('/assine') || pathname.startsWith('/a/') || pathname === '/privacidade' || pathname === '/termos') return true
   if (pathname === '/login') return true
   return NAV[perfil].some((i) => pathname === i.to || (i.to !== '/' && pathname.startsWith(i.to)))
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { TemaToggle } from '../components/TemaToggle'
 import { Field, PrimaryButton, inputClass } from '../components/ui'
 import { apiIniciarAssinatura, apiStatusAssinatura } from '../lib/api'
+import { ativarAfiliadoDaVisita, lerAfiliadoRef } from '../lib/afiliado'
 import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
 import { checkoutDo, formatarBRL, PLANOS, planoValido, PRODUTOS, valorParcela, type PagamentoId, type PlanoCheckoutId, type ProdutoId } from '../lib/planos'
 
@@ -25,6 +26,7 @@ function Shell({ children }: { children: ReactNode }) {
 
 export function AssinePage() {
   const [params] = useSearchParams()
+  const location = useLocation()
   const inicial = planoValido(params.get('plano'))
   const [form, setForm] = useState({ nome: '', cidade: '', responsavel: '', email: '', telefone: '' })
   const [produto, setProduto] = useState<ProdutoId>(PLANOS[inicial].produto)
@@ -37,6 +39,10 @@ export function AssinePage() {
   const plano: PlanoCheckoutId = teste ? 'teste' : checkoutDo(produto, pagamento)
   const escolhido = PLANOS[plano]
   const def = PRODUTOS[produto]
+
+  useEffect(() => {
+    void ativarAfiliadoDaVisita(location.search, location.pathname)
+  }, [location.search, location.pathname])
 
   return (
     <Shell>
@@ -116,7 +122,11 @@ export function AssinePage() {
           e.preventDefault()
           setEnviando(true)
           setErro(null)
-          void apiIniciarAssinatura({ ...form, plano })
+          void apiIniciarAssinatura({
+            ...form,
+            plano,
+            afiliadoCodigo: lerAfiliadoRef() || undefined,
+          })
             .then((r) => {
               try {
                 sessionStorage.setItem(

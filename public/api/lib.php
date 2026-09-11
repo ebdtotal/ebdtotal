@@ -212,10 +212,32 @@ function migrate(PDO $pdo): void {
   } catch (Throwable $e) {
     /* índice já existe */
   }
+  $pdo->exec("CREATE TABLE IF NOT EXISTS afiliados (
+    id TEXT PRIMARY KEY,
+    codigo TEXT NOT NULL UNIQUE,
+    nome TEXT NOT NULL,
+    ativo INTEGER DEFAULT 1,
+    notas TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+  )");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS afiliado_cliques (
+    id TEXT PRIMARY KEY,
+    codigo TEXT NOT NULL,
+    path TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+  )");
+  try {
+    $pdo->exec('CREATE INDEX idx_afiliado_cliques_codigo ON afiliado_cliques (codigo)');
+  } catch (Throwable $e) {
+    /* índice já existe */
+  }
   ensure_column($pdo, 'tenants', 'plano', "plano TEXT DEFAULT 'igreja'");
   ensure_column($pdo, 'tenants', 'pagamento', "pagamento TEXT DEFAULT 'avista'");
   ensure_column($pdo, 'tenants', 'contratado_em', "contratado_em TEXT DEFAULT ''");
   ensure_column($pdo, 'tenants', 'valido_ate', "valido_ate TEXT DEFAULT ''");
+  ensure_column($pdo, 'tenants', 'afiliado_codigo', "afiliado_codigo TEXT DEFAULT ''");
+  ensure_column($pdo, 'signups', 'afiliado_codigo', "afiliado_codigo TEXT DEFAULT ''");
+  ensure_column($pdo, 'demos', 'afiliado_codigo', "afiliado_codigo TEXT DEFAULT ''");
   garantir_validade_tenants($pdo);
   ensure_column($pdo, 'users', 'email', 'email TEXT DEFAULT \'\'');
   ensure_column($pdo, 'pessoas_idx', 'email', 'email TEXT DEFAULT \'\'');
@@ -231,6 +253,30 @@ function migrate(PDO $pdo): void {
       ->execute(['u-master', $tid, 'Itano', 'itano', password_hash('Itano1809@', PASSWORD_DEFAULT), 'admin']);
   }
   garantir_igreja_revisao($pdo);
+  corrigir_marca_ebd($pdo);
+}
+
+/** Corrige typo antigo da marca (EDB → EBD) em nomes já gravados. */
+function corrigir_marca_ebd(PDO $pdo): void {
+  static $feito = false;
+  if ($feito) return;
+  $feito = true;
+  try {
+    $pdo->exec("UPDATE tenants SET nome = REPLACE(nome, 'EDB', 'EBD') WHERE nome LIKE '%EDB%'");
+    $pdo->exec("UPDATE tenants SET responsavel = REPLACE(responsavel, 'EDB', 'EBD') WHERE responsavel LIKE '%EDB%'");
+    $pdo->exec("UPDATE escolas SET nome = REPLACE(nome, 'EDB', 'EBD') WHERE nome LIKE '%EDB%'");
+    $pdo->exec("UPDATE demos SET igreja = REPLACE(igreja, 'EDB', 'EBD') WHERE igreja LIKE '%EDB%'");
+    $pdo->exec("UPDATE demos SET nome = REPLACE(nome, 'EDB', 'EBD') WHERE nome LIKE '%EDB%'");
+    $rows = $pdo->query("SELECT tenant_id, state_json FROM app_state")->fetchAll();
+    $up = $pdo->prepare('UPDATE app_state SET state_json = ? WHERE tenant_id = ?');
+    foreach ($rows as $row) {
+      $json = (string)($row['state_json'] ?? '');
+      if ($json === '' || strpos($json, 'EDB') === false) continue;
+      $up->execute([str_replace('EDB', 'EBD', $json), $row['tenant_id']]);
+    }
+  } catch (Throwable $e) {
+    /* ignore em bancos antigos sem alguma tabela */
+  }
 }
 
 function garantir_igreja_revisao(PDO $pdo): void {
@@ -535,6 +581,111 @@ function colunas(PDO $pdo, string $table): array {
 function ensure_column(PDO $pdo, string $table, string $col, string $ddl): void {
   if (in_array($col, colunas($pdo, $table), true)) return;
   $pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $ddl);
+}
+
+function normalizar_codigo_afiliado(string $codigo): string {
+  $codigo = strtolower(trim($codigo));
+  $codigo = preg_replace('/[^a-z0-9_-]+/', '-', $codigo) ?? '';
+  $codigo = trim($codigo, '-_');
+  if (strlen($codigo) > 40) $codigo = substr($codigo, 0, 40);
+  return $codigo;
+}
+
+function afiliado_ativo(PDO $pdo, string $codigo): ?array {
+  $codigo = normalizar_codigo_afiliado($codigo);
+  if ($codigo === '') return null;
+  $st = $pdo->prepare('SELECT * FROM afiliados WHERE codigo = ? AND ativo = 1');
+  $st->execute([$codigo]);
+  $row = $st->fetch();
+  return $row ?: null;
+}
+
+function registrar_clique_afiliado(PDO $pdo, string $codigo, string $path = ''): array {
+  $af = afiliado_ativo($pdo, $codigo);
+  if (!$af) json_err('Link de afiliado inválido ou inativo.', 404);
+  $codigo = (string)$af['codigo'];
+  $id = uid('clk');
+  $path = trim($path);
+  if (strlen($path) > 200) $path = substr($path, 0, 200);
+  $pdo->prepare('INSERT INTO afiliado_cliques (id, codigo, path, created_at) VALUES (?,?,?,?)')
+    ->execute([$id, $codigo, $path, gmdate('c')]);
+  return ['ok' => true, 'codigo' => $codigo, 'nome' => (string)$af['nome']];
+}
+
+function gerar_codigo_afiliado(PDO $pdo, string $nome): string {
+  $base = normalizar_codigo_afiliado($nome);
+  if ($base === '') $base = 'parceiro';
+  $codigo = $base;
+  $n = 1;
+  while (true) {
+    $st = $pdo->prepare('SELECT id FROM afiliados WHERE codigo = ?');
+    $st->execute([$codigo]);
+    if (!$st->fetch()) return $codigo;
+    $n++;
+    $codigo = $base . $n;
+  }
+}
+
+function relatorio_afiliados(PDO $pdo): array {
+  $rows = $pdo->query('SELECT * FROM afiliados ORDER BY created_at DESC')->fetchAll();
+  $cliques = [];
+  foreach ($pdo->query('SELECT codigo, COUNT(*) AS total FROM afiliado_cliques GROUP BY codigo')->fetchAll() as $r) {
+    $cliques[(string)$r['codigo']] = (int)$r['total'];
+  }
+  $conversoes = [];
+  foreach ($pdo->query("SELECT afiliado_codigo AS codigo, COUNT(*) AS total FROM tenants WHERE id != 'master' AND COALESCE(afiliado_codigo,'') != '' GROUP BY afiliado_codigo")->fetchAll() as $r) {
+    $conversoes[(string)$r['codigo']] = (int)$r['total'];
+  }
+  $pendentes = [];
+  foreach ($pdo->query("SELECT afiliado_codigo AS codigo, COUNT(*) AS total FROM signups WHERE status = 'pendente' AND COALESCE(afiliado_codigo,'') != '' GROUP BY afiliado_codigo")->fetchAll() as $r) {
+    $pendentes[(string)$r['codigo']] = (int)$r['total'];
+  }
+  $base = rtrim(site_url(), '/');
+  $lista = [];
+  $totCliques = 0;
+  $totConv = 0;
+  foreach ($rows as $r) {
+    $codigo = (string)$r['codigo'];
+    $c = $cliques[$codigo] ?? 0;
+    $v = $conversoes[$codigo] ?? 0;
+    $p = $pendentes[$codigo] ?? 0;
+    $totCliques += $c;
+    $totConv += $v;
+    $lista[] = [
+      'id' => $r['id'],
+      'codigo' => $codigo,
+      'nome' => $r['nome'],
+      'ativo' => (int)($r['ativo'] ?? 1) === 1,
+      'notas' => (string)($r['notas'] ?? ''),
+      'created_at' => $r['created_at'],
+      'link' => $base . '/a/' . rawurlencode($codigo),
+      'cliques' => $c,
+      'conversoes' => $v,
+      'pendentes' => $p,
+    ];
+  }
+  return [
+    'afiliados' => $lista,
+    'resumo' => [
+      'total' => count($lista),
+      'ativos' => count(array_filter($lista, static fn($a) => $a['ativo'])),
+      'cliques' => $totCliques,
+      'conversoes' => $totConv,
+    ],
+  ];
+}
+
+function clientes_do_afiliado(PDO $pdo, string $codigo): array {
+  $codigo = normalizar_codigo_afiliado($codigo);
+  if ($codigo === '') return ['clientes' => [], 'signups' => []];
+  $st = $pdo->prepare("SELECT id, nome, cidade, responsavel, email, telefone, status, plano, created_at, contratado_em, valido_ate, afiliado_codigo
+    FROM tenants WHERE id != 'master' AND afiliado_codigo = ? ORDER BY created_at DESC");
+  $st->execute([$codigo]);
+  $clientes = $st->fetchAll();
+  $st2 = $pdo->prepare("SELECT id, nome, cidade, responsavel, email, telefone, status, plano, created_at, pago_em, tenant_id, afiliado_codigo
+    FROM signups WHERE afiliado_codigo = ? ORDER BY created_at DESC");
+  $st2->execute([$codigo]);
+  return ['clientes' => $clientes, 'signups' => $st2->fetchAll()];
 }
 
 function email_valido(string $email): bool {
@@ -867,7 +1018,7 @@ function mp_criar_preferencia(string $sid, string $igreja, string $responsavel, 
     'auto_return' => 'approved',
     'external_reference' => $sid,
     'notification_url' => $base . '/api/pagamento.php',
-    'statement_descriptor' => 'EDBTOTAL',
+    'statement_descriptor' => 'EBDTOTAL',
     'metadata' => [
       'signup_id' => $sid,
       'plano' => (string)($plano['id'] ?? 'avista'),
@@ -904,9 +1055,11 @@ function criar_cliente(PDO $pdo, array $in, string $status = 'trial'): array {
   $produto = produto_do_checkout($checkout);
   $pagamento = pagamento_do_checkout($checkout);
   $valido = data_mais_um_ano($now);
+  $afiliado = normalizar_codigo_afiliado((string)($in['afiliadoCodigo'] ?? $in['afiliado_codigo'] ?? $in['ref'] ?? ''));
+  if ($afiliado !== '' && !afiliado_ativo($pdo, $afiliado)) $afiliado = '';
 
-  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at,plano,pagamento,contratado_em,valido_ate) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-    ->execute([$tid, $nome, $cidade, $responsavel, $email, $telefone, $status, $username, $now, $produto, $pagamento, $now, $valido]);
+  $pdo->prepare('INSERT INTO tenants (id,nome,cidade,responsavel,email,telefone,status,username_admin,created_at,plano,pagamento,contratado_em,valido_ate,afiliado_codigo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    ->execute([$tid, $nome, $cidade, $responsavel, $email, $telefone, $status, $username, $now, $produto, $pagamento, $now, $valido, $afiliado]);
   $pdo->prepare('INSERT INTO users (id,tenant_id,nome,username,senha_hash,papel,email) VALUES (?,?,?,?,?,?,?)')
     ->execute([$uid, $tid, $responsavel, $username, password_hash($senha, PASSWORD_DEFAULT), 'sede', $email]);
 
@@ -1017,12 +1170,14 @@ function iniciar_assinatura(PDO $pdo, array $in): array {
   $exist = $st->fetch();
   $sid = $exist ? (string)$exist['id'] : uid('ass');
   $now = gmdate('c');
+  $afiliado = normalizar_codigo_afiliado((string)($in['afiliadoCodigo'] ?? $in['afiliado_codigo'] ?? $in['ref'] ?? ''));
+  if ($afiliado !== '' && !afiliado_ativo($pdo, $afiliado)) $afiliado = '';
   if ($exist) {
-    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=?, upgrade_tenant_id=? WHERE id=?')
-      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $upgradeTid, $sid]);
+    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=?, upgrade_tenant_id=?, afiliado_codigo=COALESCE(NULLIF(afiliado_codigo,\'\'), ?) WHERE id=?')
+      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $upgradeTid, $afiliado, $sid]);
   } else {
-    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at,upgrade_tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now, $upgradeTid]);
+    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at,upgrade_tenant_id,afiliado_codigo) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now, $upgradeTid, $afiliado]);
   }
 
   $token = trim((string)(cfg()['pagamento']['mp_access_token'] ?? ''));
@@ -1111,6 +1266,7 @@ function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): arra
     'email' => $row['email'],
     'telefone' => $row['telefone'],
     'plano' => $checkout,
+    'afiliadoCodigo' => (string)($row['afiliado_codigo'] ?? ''),
   ], 'ativa');
 
   $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, username=?, pago_em=?, preco=? WHERE id=?')

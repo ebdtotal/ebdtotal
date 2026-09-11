@@ -17,8 +17,10 @@ if ($method === 'POST') {
 
   $id = uid('demo');
   $now = gmdate('c');
-  $pdo->prepare('INSERT INTO demos (id,nome,email,telefone,igreja,status,created_at) VALUES (?,?,?,?,?,?,?)')
-    ->execute([$id, $nome, $email, $telefone, $igreja, 'nova', $now]);
+  $afiliado = normalizar_codigo_afiliado((string)($in['afiliadoCodigo'] ?? $in['afiliado_codigo'] ?? $in['ref'] ?? ''));
+  if ($afiliado !== '' && !afiliado_ativo($pdo, $afiliado)) $afiliado = '';
+  $pdo->prepare('INSERT INTO demos (id,nome,email,telefone,igreja,status,created_at,afiliado_codigo) VALUES (?,?,?,?,?,?,?,?)')
+    ->execute([$id, $nome, $email, $telefone, $igreja, 'nova', $now, $afiliado]);
 
   json_ok([
     'ok' => true,

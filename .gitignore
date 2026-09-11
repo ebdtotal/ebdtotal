@@ -16,6 +16,9 @@ ios_distribution_private_key
 *_private_key
 *.p12
 *.mobileprovision
+*.jks
+*.keystore
+android/key.properties
 ios/App/build
 store/preview/logo.png
 public/api/data/pagamento.local.php

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   Award,
   BarChart3,
@@ -19,7 +19,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Logo } from '../components/Logo'
 import { Field, Modal, PrimaryButton, inputClass } from '../components/ui'
 import { apiAgendarDemo } from '../lib/api'
-import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
+import { ativarAfiliadoDaVisita, lerAfiliadoRef } from '../lib/afiliado'
+import { APP_STORE_URL, WHATSAPP_SUPORTE_LINK } from '../lib/landing'
 import { formatarBRL, PLANOS, PRODUTOS, valorParcela } from '../lib/planos'
 import { WHATSAPP_SUPORTE, whatsappUrl } from '../lib/utils'
 
@@ -59,18 +60,25 @@ const BENEFICIOS = [
 const FORM_VAZIO = { nome: '', email: '', telefone: '', igreja: '' }
 
 export function LandingPage() {
+  const location = useLocation()
   const [demoAberto, setDemoAberto] = useState(false)
   const [form, setForm] = useState(FORM_VAZIO)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
+  const [ref, setRef] = useState<string | null>(() => lerAfiliadoRef())
 
   useEffect(() => {
     document.documentElement.classList.add('site-publico')
     return () => document.documentElement.classList.remove('site-publico')
   }, [])
 
+  useEffect(() => {
+    void ativarAfiliadoDaVisita(location.search, location.pathname).then((c) => setRef(c))
+  }, [location.search, location.pathname])
+
   const assinar = whatsappUrl(WHATSAPP_SUPORTE, 'Olá! Quero assinar o EBD Total para a minha igreja.')
+  const linkAssine = (plano: string) => (ref ? `/assine?plano=${plano}&ref=${encodeURIComponent(ref)}` : `/assine?plano=${plano}`)
 
   function abrirDemo() {
     setErro(null)
@@ -85,7 +93,8 @@ export function LandingPage() {
     setOk(null)
     setEnviando(true)
     try {
-      const r = await apiAgendarDemo(form)
+      const afiliadoCodigo = lerAfiliadoRef() || undefined
+      const r = await apiAgendarDemo({ ...form, afiliadoCodigo })
       setOk(r.mensagem || 'Recebemos seu pedido. Em breve entraremos em contato.')
       setForm(FORM_VAZIO)
     } catch (err) {
@@ -170,6 +179,23 @@ export function LandingPage() {
               >
                 SOLICITAR DEMONSTRAÇÃO
               </button>
+            </div>
+            <div className="mt-5">
+              <a
+                href={APP_STORE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-3 rounded-xl bg-[#152238] px-4 py-2.5 text-white shadow-sm transition hover:bg-navy/90"
+                aria-label="Baixar o EBD Total na App Store"
+              >
+                <svg width="22" height="26" viewBox="0 0 22 26" fill="currentColor" aria-hidden="true">
+                  <path d="M18.05 13.7c-.03-3.02 2.47-4.47 2.58-4.54-1.41-2.06-3.6-2.34-4.38-2.37-1.86-.19-3.64 1.1-4.58 1.1-.95 0-2.4-1.08-3.95-1.05-2.03.03-3.9 1.18-4.94 3-2.11 3.66-.54 9.08 1.52 12.05 1.01 1.45 2.2 3.08 3.77 3.02 1.52-.06 2.09-.98 3.93-.98 1.83 0 2.35.98 3.96.95 1.64-.03 2.67-1.48 3.66-2.94 1.16-1.68 1.63-3.31 1.66-3.39-.04-.02-3.17-1.22-3.23-4.85zM14.9 4.6c.83-1.01 1.4-2.41 1.24-3.81-1.2.05-2.66.8-3.52 1.81-.77.89-1.45 2.32-1.27 3.68 1.34.1 2.71-.68 3.55-1.68z" />
+                </svg>
+                <span className="leading-tight text-left">
+                  <span className="block text-[9px] font-medium tracking-wide text-white/70">Baixar na</span>
+                  <span className="block text-sm font-semibold tracking-tight">App Store</span>
+                </span>
+              </a>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-navy/10 pt-7">
               {[
@@ -268,7 +294,7 @@ export function LandingPage() {
                 itens={PRODUTOS.essencial.itens}
                 preco={PLANOS.essencial.preco}
                 parcela={valorParcela('essencial12')}
-                to="/assine?plano=essencial"
+                to={linkAssine('essencial')}
               />
               <PlanoCard
                 nome="EBD Total Igreja"
@@ -277,7 +303,7 @@ export function LandingPage() {
                 itens={PRODUTOS.igreja.itens}
                 preco={PLANOS.igreja.preco}
                 parcela={valorParcela('igreja12')}
-                to="/assine?plano=igreja"
+                to={linkAssine('igreja')}
               />
             </div>
             <p className="mt-4 text-center text-xs text-muted">
@@ -321,6 +347,9 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pt-4 text-xs text-white/55">
           <span>EBD Total · Escola Bíblica Dominical</span>
           <div className="flex flex-wrap items-center gap-4">
+            <a href={APP_STORE_URL} target="_blank" rel="noreferrer" className="hover:text-gold">
+              App Store
+            </a>
             <Link to="/login" className="hover:text-gold">
               Entrar
             </Link>

@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Logo } from './Logo'
+import { SinoNotificacoes } from './SinoNotificacoes'
 import { TemaToggle } from './TemaToggle'
 
 const NAV = [
@@ -86,6 +87,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             <div className="text-sm font-semibold text-navy">EBD Total</div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
+            <SinoNotificacoes />
             <TemaToggle compact />
             <NavLink to="/conta" className="max-w-[110px] truncate text-xs font-medium text-navy">
               {usuario?.nome}

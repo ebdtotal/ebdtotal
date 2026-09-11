@@ -182,6 +182,7 @@ export async function apiIniciarAssinatura(payload: {
   email: string
   telefone: string
   plano: PlanoCheckoutId
+  afiliadoCodigo?: string
 }) {
   return req<{ checkoutUrl: string; signupId: string; preco: number; plano: string; email: string; igreja: string }>(
     'clientes.php',
@@ -268,10 +269,72 @@ export type DemoPedido = {
   notas?: string
 }
 
-export async function apiAgendarDemo(payload: { nome: string; email: string; telefone: string; igreja: string }) {
+export async function apiAgendarDemo(payload: {
+  nome: string
+  email: string
+  telefone: string
+  igreja: string
+  afiliadoCodigo?: string
+}) {
   return req<{ ok: boolean; mensagem: string; id: string }>('demos.php', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export type AfiliadoItem = {
+  id: string
+  codigo: string
+  nome: string
+  ativo: boolean
+  notas: string
+  created_at: string
+  link: string
+  cliques: number
+  conversoes: number
+  pendentes: number
+}
+
+export type AfiliadoCliente = {
+  id: string
+  nome: string
+  cidade: string
+  responsavel: string
+  email: string
+  telefone: string
+  status: string
+  plano: string
+  created_at: string
+  contratado_em?: string
+  valido_ate?: string
+  afiliado_codigo?: string
+}
+
+export async function apiAfiliados(codigo?: string) {
+  const q = codigo ? `?codigo=${encodeURIComponent(codigo)}` : ''
+  return req<{
+    afiliados: AfiliadoItem[]
+    resumo: { total: number; ativos: number; cliques: number; conversoes: number }
+    codigo?: string
+    clientes?: AfiliadoCliente[]
+    signups?: AssinaturaPendente[]
+  }>(`afiliados.php${q}`)
+}
+
+export async function apiCriarAfiliado(payload: { nome: string; codigo?: string; notas?: string }) {
+  return req<{ ok: boolean; afiliado: AfiliadoItem; resumo: { total: number; ativos: number; cliques: number; conversoes: number } }>(
+    'afiliados.php',
+    { method: 'POST', body: JSON.stringify({ acao: 'criar', ...payload }) },
+  )
+}
+
+export async function apiPatchAfiliado(
+  id: string,
+  extra: { nome?: string; notas?: string; ativo?: boolean; acao?: 'excluir' | 'atualizar' },
+) {
+  return req<{ ok: boolean }>('afiliados.php', {
+    method: 'PATCH',
+    body: JSON.stringify({ id, ...extra }),
   })
 }
 

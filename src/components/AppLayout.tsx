@@ -12,6 +12,7 @@ import {
   Layers,
   LayoutDashboard,
   LayoutGrid,
+  Link2,
   LogOut,
   Megaphone,
   Menu,
@@ -34,6 +35,7 @@ import { alertasMudancaFaixa } from '../lib/faixa'
 import { useStore } from '../lib/store'
 import { whatsappUrl } from '../lib/utils'
 import { Logo } from './Logo'
+import { SinoNotificacoes } from './SinoNotificacoes'
 import { TemaToggle } from './TemaToggle'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -63,6 +65,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/master': Building2,
   '/master/assinaturas': Wallet,
   '/master/demos': CalendarRange,
+  '/master/afiliados': Link2,
   '/portal': Home,
   '/portal/avaliacao': ClipboardList,
 }
@@ -213,6 +216,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
+            <SinoNotificacoes />
             <TemaToggle compact />
             <NavLink to="/conta" className="flex min-w-0 items-center gap-1.5 text-xs text-ink hover:text-navy">
               <UserRound size={16} className="shrink-0 text-muted" />

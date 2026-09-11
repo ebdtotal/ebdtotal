@@ -20,12 +20,12 @@ $sess = auth();
 if ($sess['papel'] !== 'admin') json_err('Acesso restrito ao master.', 403);
 
 if ($method === 'GET') {
-  $rows = $pdo->query("SELECT t.id, t.nome, t.cidade, t.responsavel, t.email, t.telefone, t.status, t.username_admin, t.created_at, t.plano, t.pagamento, t.contratado_em, t.valido_ate,
+  $rows = $pdo->query("SELECT t.id, t.nome, t.cidade, t.responsavel, t.email, t.telefone, t.status, t.username_admin, t.created_at, t.plano, t.pagamento, t.contratado_em, t.valido_ate, t.afiliado_codigo,
     (SELECT COUNT(*) FROM pessoas_idx p WHERE p.tenant_id = t.id) AS pessoas
     FROM tenants t WHERE t.id != 'master' ORDER BY t.created_at DESC")->fetchAll();
   $cad = $pdo->query('SELECT p.tenant_id, p.nome, p.tipo, p.status, p.escola, p.turma, t.nome AS igreja
     FROM pessoas_idx p JOIN tenants t ON t.id = p.tenant_id ORDER BY t.nome, p.nome')->fetchAll();
-  $assinaturas = $pdo->query("SELECT id,nome,cidade,responsavel,email,telefone,status,username,created_at,pago_em,plano,upgrade_tenant_id FROM signups ORDER BY created_at DESC")->fetchAll();
+  $assinaturas = $pdo->query("SELECT id,nome,cidade,responsavel,email,telefone,status,username,created_at,pago_em,plano,upgrade_tenant_id,afiliado_codigo FROM signups ORDER BY created_at DESC")->fetchAll();
   $resumo = [
     'igrejas' => count($rows),
     'ativas' => 0,
