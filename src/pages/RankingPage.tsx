@@ -14,7 +14,6 @@ const LABELS = [
   ['evolucao', 'Evolução'],
   ['aprendizado', 'Aprendizado'],
   ['leitura', 'Leitura'],
-  ['projetos', 'Projetos'],
 ] as const
 
 export function RankingPage() {

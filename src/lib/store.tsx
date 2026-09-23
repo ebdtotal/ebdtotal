@@ -94,7 +94,7 @@ function loadState(): AppState {
       avaliacoes: parsed.avaliacoes ?? seed.avaliacoes,
       metas: parsed.metas?.length ? parsed.metas : seed.metas,
       avisos: parsed.avisos ?? seed.avisos,
-      desafios: parsed.desafios ?? seed.desafios,
+      desafios: [],
       certificados: parsed.certificados ?? seed.certificados,
       modeloCertificado: parsed.modeloCertificado ?? seed.modeloCertificado,
       licoesRemovidas: parsed.licoesRemovidas ?? seed.licoesRemovidas,
@@ -830,6 +830,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const agora = new Date().toISOString()
     const turma = (ctx?.turma ?? '').trim()
     const lancId = turma ? idLancOfertaClasse(relatorio.escolaId, relatorio.data, turma) : `oferta_${relatorio.id}`
+    const classeCtx = turma ? (relatorio.classes ?? []).find((c) => c.turma === turma) : undefined
+    const professores = turma.toLowerCase() === 'professores'
+    const entraNoCaixa = professores
+      ? !!(relatorio.professoresSalva || relatorio.professoresFinalizada)
+      : turma
+        ? !!classeCtx?.salva
+        : true
     commit(
       (prev) => {
         const payload = { ...relatorio, updatedAt: agora }
@@ -837,10 +844,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const relatorios = exists
           ? prev.relatorios.map((r) => (r.id === payload.id ? payload : r))
           : [...prev.relatorios, payload]
-        const valor = turma.toLowerCase() === 'professores' ? (payload.ofertaProfessores ?? 0) : payload.oferta
+        const valor = professores
+          ? (payload.ofertaProfessores ?? 0)
+          : turma
+            ? (classeCtx?.oferta ?? 0)
+            : payload.oferta
         let lancamentos = prev.lancamentos
         let lancamentosRemovidos = prev.lancamentosRemovidos
-        if (valor > 0) {
+        if (!entraNoCaixa) {
+          /* rascunho da classe ainda não entra no financeiro */
+        } else if (valor > 0) {
           const existenteLanc = lancamentos.find((l) => l.id === lancId)
           const cats = garantirCategorias(prev.categoriasFinanceiras, prev.categoriasRemovidas)
           const lanc: LancamentoFinanceiro = {
@@ -880,8 +893,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           categoriasFinanceiras: next.categoriasFinanceiras,
         }
         const lanc = next.lancamentos.find((l) => l.id === lancId)
-        if (lanc) recorte.lancamentos = [lanc]
-        else recorte.lancamentosRemovidos = [lancId]
+        if (entraNoCaixa) {
+          if (lanc) recorte.lancamentos = [lanc]
+          else recorte.lancamentosRemovidos = [lancId]
+        }
         return recorte
       },
     )

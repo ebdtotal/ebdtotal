@@ -19,7 +19,7 @@ import { EVENTO_SYNC } from '../lib/native'
 import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
 import { turmasDaEscola } from '../lib/stats'
-import { chamadaVazia, pontosDe, type ChamadaAluno, type RelatorioDiario } from '../lib/types'
+import { chamadaVazia, pontosDe, type ChamadaAluno, type ChamadaClasse, type RelatorioDiario } from '../lib/types'
 import { formatDateBR, lastSunday, moneyBR, parseMoneyBR, toISODate, uid } from '../lib/utils'
 
 const CHAMADA_PROFESSORES = '__professores__'
@@ -83,8 +83,10 @@ export function ChamadaPage() {
     escolaId,
   )
 
+  const existente = state.relatorios.find((r) => r.escolaId === escolaId && r.data === data)
+  const classeAberta = turma && turma !== CHAMADA_PROFESSORES ? existente?.classes?.find((c) => c.turma === turma) : undefined
+
   if (chave !== carregado && escolaId) {
-    const existente = state.relatorios.find((r) => r.escolaId === escolaId && r.data === data)
     const mapa = new Map((existente?.alunos ?? []).map((a) => [a.pessoaId, a]))
     const rows = daEscola.map((p) => {
       const prev = mapa.get(p.id)
@@ -98,25 +100,40 @@ export function ChamadaPage() {
           }
         : chamadaVazia(p.id)
     })
+    const daTurmaRows =
+      turma && turma !== CHAMADA_PROFESSORES
+        ? rows.filter((a) => daEscola.some((p) => p.id === a.pessoaId && p.tipo === 'Aluno' && p.turma === turma))
+        : rows
     setAlunos(rows)
-    setVisitantes(existente?.visitantes ?? 0)
-    setOferta(existente?.oferta ?? 0)
-    setAnotacao(existente?.anotacao ?? '')
-    setBibliasClasse(existente?.biblias ?? rows.filter((a) => a.biblia).length)
-    setRevistasClasse(existente?.revistas ?? rows.filter((a) => a.revista).length)
+    setVisitantes(classeAberta ? classeAberta.visitantes : turma && turma !== CHAMADA_PROFESSORES ? 0 : (existente?.visitantes ?? 0))
+    setOferta(classeAberta ? classeAberta.oferta : turma && turma !== CHAMADA_PROFESSORES ? 0 : (existente?.oferta ?? 0))
+    setAnotacao(classeAberta ? (classeAberta.anotacao ?? '') : turma && turma !== CHAMADA_PROFESSORES ? '' : (existente?.anotacao ?? ''))
+    setBibliasClasse(classeAberta?.biblias ?? daTurmaRows.filter((a) => a.biblia).length)
+    setRevistasClasse(classeAberta?.revistas ?? daTurmaRows.filter((a) => a.revista).length)
     setBibliasProf(existente?.bibliasProfessores ?? 0)
     setRevistasProf(existente?.revistasProfessores ?? 0)
     setOfertaProf(existente?.ofertaProfessores ?? 0)
     setCarregado(chave)
-    setTurmaAberta('')
+    setTurmaAberta(turma)
     setEditando(false)
   }
 
-  if (turma && turma !== CHAMADA_PROFESSORES && turma !== turmaAberta && chave === carregado) {
-    const daTurma = alunos.filter((a) => pessoas.some((p) => p.id === a.pessoaId))
-    setBibliasClasse(daTurma.filter((a) => a.biblia).length)
-    setRevistasClasse(daTurma.filter((a) => a.revista).length)
+  if (chave === carregado && turma !== turmaAberta) {
+    if (turma && turma !== CHAMADA_PROFESSORES) {
+      const daTurma = alunos.filter((a) => daEscola.some((p) => p.id === a.pessoaId && p.tipo === 'Aluno' && p.turma === turma))
+      setOferta(classeAberta?.oferta ?? 0)
+      setVisitantes(classeAberta?.visitantes ?? 0)
+      setAnotacao(classeAberta?.anotacao ?? '')
+      setBibliasClasse(classeAberta?.biblias ?? daTurma.filter((a) => a.biblia).length)
+      setRevistasClasse(classeAberta?.revistas ?? daTurma.filter((a) => a.revista).length)
+    }
+    if (turma === CHAMADA_PROFESSORES) {
+      setBibliasProf(existente?.bibliasProfessores ?? 0)
+      setRevistasProf(existente?.revistasProfessores ?? 0)
+      setOfertaProf(existente?.ofertaProfessores ?? 0)
+    }
     setTurmaAberta(turma)
+    setEditando(false)
   }
 
   const visiveis = alunos
@@ -126,8 +143,8 @@ export function ChamadaPage() {
       const nb = pessoas.find((p) => p.id === b.pessoaId)?.nome ?? ''
       return na.localeCompare(nb, 'pt-BR')
     })
-  const existente = state.relatorios.find((r) => r.escolaId === escolaId && r.data === data)
-  const finalizado = existente?.finalizado ?? false
+  const finalizado = modoProfessores ? !!existente?.professoresFinalizada : !!classeAberta?.finalizada
+  const classeSalva = modoProfessores ? !!existente?.professoresSalva : !!classeAberta?.salva
   const bloqueado = planoTravado || (finalizado && !editando)
   const avisoConsulta = planoTravado ? (
     <p className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -155,34 +172,85 @@ export function ChamadaPage() {
     navigate({ pathname: '/chamada' })
   }
 
+  function mesclarClasses(
+    extra: { visitantes: number; biblias: number; revistas: number; oferta: number; anotacao: string },
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
+  ): ChamadaClasse[] {
+    const prev = existente?.classes ?? []
+    if (modoProfessores || !turma) return prev
+    const anterior = prev.find((c) => c.turma === turma)
+    const atual: ChamadaClasse = {
+      turma,
+      oferta: extra.oferta,
+      visitantes: extra.visitantes,
+      biblias: extra.biblias,
+      revistas: extra.revistas,
+      anotacao: extra.anotacao,
+      salva: !!(opts?.salvarClasse || opts?.finalizarClasse || anterior?.salva),
+      finalizada: opts?.finalizarClasse ? true : !!anterior?.finalizada,
+    }
+    return [...prev.filter((c) => c.turma !== turma), atual]
+  }
+
   function montar(
     lista: ChamadaAluno[],
     extra: { visitantes: number; biblias: number; revistas: number; oferta: number; anotacao: string },
-    parcial: { finalizado: boolean },
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
   ): RelatorioDiario {
-    const idsAlunos = new Set(daEscola.filter((p) => p.tipo === 'Aluno').map((p) => p.id))
-    const idsTurma = new Set(pessoas.map((p) => p.id))
+    const classes = mesclarClasses(extra, opts)
+    const nomesTurmas = [...new Set(daEscola.filter((p) => p.tipo === 'Aluno' && p.turma).map((p) => p.turma))]
+    const salvas = new Set(classes.filter((c) => c.salva).map((c) => c.turma))
+    const idsSalvos = new Set(
+      daEscola.filter((p) => p.tipo === 'Aluno' && p.turma && salvas.has(p.turma)).map((p) => p.id),
+    )
     const todos = lista.filter((a) => daEscola.some((p) => p.id === a.pessoaId))
-    const soAlunos = todos.filter((a) => idsAlunos.has(a.pessoaId))
-    const pre = soAlunos.filter((a) => a.presente).length
-    const bibliasOutros = todos.filter((a) => idsAlunos.has(a.pessoaId) && !idsTurma.has(a.pessoaId) && a.biblia).length
-    const revistasOutros = todos.filter((a) => idsAlunos.has(a.pessoaId) && !idsTurma.has(a.pessoaId) && a.revista).length
+    const considerados = todos.filter((a) => idsSalvos.has(a.pessoaId))
+    const temSalva = classes.some((c) => c.salva)
+    const pre = considerados.filter((a) => a.presente).length
+    const manterLegado = !temSalva && !opts?.salvarClasse && !opts?.finalizarClasse && !!existente
+    const diaFinalizado = nomesTurmas.length > 0 && nomesTurmas.every((nome) => salvas.has(nome))
+    const anotacoes = classes.map((c) => c.anotacao?.trim()).filter(Boolean).join(' · ')
     return {
       id: existente?.id ?? uid('rel'),
       escolaId,
       data,
-      matriculados: soAlunos.length,
-      presentes: pre,
-      ausentes: Math.max(0, soAlunos.length - pre),
-      visitantes: modoProfessores ? (existente?.visitantes ?? extra.visitantes) : extra.visitantes,
-      biblias: modoProfessores ? (existente?.biblias ?? 0) : bibliasOutros + extra.biblias,
-      revistas: modoProfessores ? (existente?.revistas ?? 0) : revistasOutros + extra.revistas,
-      oferta: modoProfessores ? (existente?.oferta ?? 0) : extra.oferta,
-      anotacao: modoProfessores ? (existente?.anotacao ?? '') : extra.anotacao,
+      matriculados: manterLegado ? existente.matriculados : considerados.length,
+      presentes: manterLegado ? existente.presentes : pre,
+      ausentes: manterLegado ? existente.ausentes : Math.max(0, considerados.length - pre),
+      visitantes: modoProfessores
+        ? (existente?.visitantes ?? 0)
+        : manterLegado
+          ? existente.visitantes
+          : classes.filter((c) => c.salva).reduce((s, c) => s + c.visitantes, 0),
+      biblias: modoProfessores
+        ? (existente?.biblias ?? 0)
+        : manterLegado
+          ? existente.biblias
+          : classes.filter((c) => c.salva).reduce((s, c) => s + c.biblias, 0),
+      revistas: modoProfessores
+        ? (existente?.revistas ?? 0)
+        : manterLegado
+          ? existente.revistas
+          : classes.filter((c) => c.salva).reduce((s, c) => s + c.revistas, 0),
+      oferta: modoProfessores
+        ? (existente?.oferta ?? 0)
+        : manterLegado
+          ? existente.oferta
+          : classes.filter((c) => c.salva).reduce((s, c) => s + c.oferta, 0),
+      anotacao: modoProfessores ? (existente?.anotacao ?? '') : anotacoes,
       bibliasProfessores: modoProfessores ? extra.biblias : (existente?.bibliasProfessores ?? bibliasProf),
       revistasProfessores: modoProfessores ? extra.revistas : (existente?.revistasProfessores ?? revistasProf),
       ofertaProfessores: modoProfessores ? extra.oferta : (existente?.ofertaProfessores ?? ofertaProf),
-      finalizado: parcial.finalizado,
+      finalizado: diaFinalizado,
+      professoresSalva: modoProfessores
+        ? !!(opts?.salvarClasse || opts?.finalizarClasse || existente?.professoresSalva)
+        : !!existente?.professoresSalva,
+      professoresFinalizada: modoProfessores
+        ? opts?.finalizarClasse
+          ? true
+          : !!existente?.professoresFinalizada
+        : !!existente?.professoresFinalizada,
+      classes,
       alunos: todos,
       updatedAt: new Date().toISOString(),
     }
@@ -201,9 +269,13 @@ export function ChamadaPage() {
     return { visitantes, biblias: bibliasClasse, revistas: revistasClasse, oferta, anotacao }
   }
 
-  function salvar(lista: ChamadaAluno[], extra = extrasAgora(), finalizar = false) {
-    if (bloqueado) return
-    saveRelatorio(montar(lista, extra, { finalizado: finalizar || finalizado }), {
+  function salvar(
+    lista: ChamadaAluno[],
+    extra = extrasAgora(),
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
+  ) {
+    if (planoTravado || (finalizado && !editando)) return
+    saveRelatorio(montar(lista, extra, opts), {
       turma: modoProfessores ? 'Professores' : turma || undefined,
     })
   }
@@ -317,8 +389,8 @@ export function ChamadaPage() {
         <h1 className="text-2xl font-semibold text-ink">Chamada</h1>
         <p className="mb-4 text-sm text-muted">
           {ehSuper
-            ? 'O superintendente lança a chamada de cada classe e a chamada dos professores.'
-            : 'Presença das turmas da congregação.'}
+            ? 'Cada classe tem a própria chamada e a própria oferta. Salvar uma classe deixa as outras pendentes.'
+            : 'Presença das turmas da congregação. Cada classe é salva à parte.'}
         </p>
         {avisoConsulta}
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -327,7 +399,7 @@ export function ChamadaPage() {
             <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[13px] font-medium">Escola</span>
+            <span className="mb-1 block text-[13px] font-medium">Congregação</span>
             <select
               className={inputClass}
               value={escolaId}
@@ -359,7 +431,7 @@ export function ChamadaPage() {
                 <span>
                   <span className="block font-semibold">Chamada dos professores</span>
                   <span className="text-xs text-navy/65">
-                    {presentesProf}/{professores.length} presentes · lista única, sem separar por classe
+                    {existente?.professoresSalva ? 'Salva' : 'Pendente'} · {presentesProf}/{professores.length} presentes
                   </span>
                 </span>
               </span>
@@ -375,6 +447,8 @@ export function ChamadaPage() {
               const daTurma = daEscola.filter((p) => p.turma === t && p.tipo === 'Aluno')
               const ids = new Set(daTurma.map((p) => p.id))
               const presentes = alunos.filter((a) => ids.has(a.pessoaId) && a.presente).length
+              const classe = existente?.classes?.find((c) => c.turma === t)
+              const salva = !!classe?.salva
               return (
                 <li key={t}>
                   <button
@@ -384,15 +458,18 @@ export function ChamadaPage() {
                   >
                     <span>
                       <span className="block font-semibold">{t}</span>
-                      <span className="text-xs text-navy/65">{presentes}/{daTurma.length} presentes</span>
+                      <span className={`text-xs ${salva ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {salva ? 'Salva' : 'Pendente'} · {presentes}/{daTurma.length} presentes
+                        {salva ? ` · oferta ${moneyBR(classe?.oferta ?? 0)}` : ''}
+                      </span>
                     </span>
-                    <span className="text-sm font-semibold text-navy">Abrir</span>
+                    <span className="text-sm font-semibold text-navy">{salva ? 'Abrir' : 'Fazer chamada'}</span>
                   </button>
                 </li>
               )
             })}
             {turmas.length === 0 ? (
-              <li className="rounded-2xl border-2 border-gold bg-white px-4 py-8 text-center text-sm text-navy/70">Nenhuma turma nesta escola.</li>
+              <li className="rounded-2xl border-2 border-gold bg-white px-4 py-8 text-center text-sm text-navy/70">Nenhuma turma nesta congregação.</li>
             ) : null}
           </ul>
         </section>
@@ -428,7 +505,7 @@ export function ChamadaPage() {
         {avisoConsulta}
         {planoTravado ? null : finalizado && !editando ? (
           <div className="mb-3 flex flex-col gap-2 rounded-xl bg-emerald-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-emerald-800">Relatório finalizado. Você pode corrigir a chamada.</p>
+            <p className="text-sm text-emerald-800">Chamada dos professores finalizada. Você pode corrigir.</p>
             <PrimaryButton className="shrink-0" onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar
             </PrimaryButton>
@@ -436,7 +513,7 @@ export function ChamadaPage() {
         ) : null}
         {finalizado && editando ? (
           <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Editando chamada finalizada. Salve as alterações quando terminar.
+            Editando chamada finalizada dos professores. Salve as alterações quando terminar.
           </p>
         ) : null}
 
@@ -475,7 +552,7 @@ export function ChamadaPage() {
             })}
             {pessoas.length === 0 ? (
               <li className="rounded-2xl bg-page px-4 py-8 text-center text-sm text-muted">
-                Nenhum professor cadastrado nesta escola.
+                Nenhum professor cadastrado nesta congregação.
               </li>
             ) : null}
           </ul>
@@ -527,7 +604,7 @@ export function ChamadaPage() {
             <PrimaryButton
               className="w-full"
               onClick={() => {
-                salvar(alunos)
+                salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })
                 setEditando(false)
               }}
             >
@@ -545,7 +622,7 @@ export function ChamadaPage() {
           </div>
         ) : (
           <div className={acoesChamadaClass}>
-            <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos)}>
+            <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>
               Enviar relatório
             </PrimaryButton>
           </div>
@@ -583,9 +660,14 @@ export function ChamadaPage() {
       </div>
 
       {avisoConsulta}
+      {planoTravado ? null : classeSalva && !finalizado ? (
+        <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Chamada desta classe salva. As outras classes do dia continuam pendentes até serem abertas e salvas.
+        </p>
+      ) : null}
       {planoTravado ? null : finalizado && !editando ? (
         <div className="mb-3 flex flex-col gap-2 rounded-xl bg-emerald-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-emerald-800">Relatório finalizado. Você pode corrigir a chamada.</p>
+          <p className="text-sm text-emerald-800">Chamada desta classe finalizada. As outras classes não são alteradas.</p>
           <PrimaryButton className="shrink-0" onClick={() => setEditando(true)}>
             <Pencil size={16} /> Editar
           </PrimaryButton>
@@ -593,7 +675,7 @@ export function ChamadaPage() {
       ) : null}
       {finalizado && editando ? (
         <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Editando chamada finalizada. Salve as alterações quando terminar.
+          Editando chamada finalizada desta classe. Salve as alterações quando terminar.
         </p>
       ) : null}
 
@@ -728,7 +810,7 @@ export function ChamadaPage() {
           acoesConsulta
         ) : bloqueado ? (
           <>
-            <span className="text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Relatório finalizado</span>
+            <span className="text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Chamada desta classe finalizada</span>
             <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
             </PrimaryButton>
@@ -738,7 +820,7 @@ export function ChamadaPage() {
             <PrimaryButton
               className="w-full"
               onClick={() => {
-                salvar(alunos)
+                salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })
                 setEditando(false)
               }}
             >
@@ -756,10 +838,10 @@ export function ChamadaPage() {
           </>
         ) : (
           <>
-            <PrimaryButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), true)}>
+            <PrimaryButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })}>
               <Check size={16} /> Finalizar
             </PrimaryButton>
-            <GhostButton className="w-full" onClick={() => salvar(alunos)}>Salvar</GhostButton>
+            <GhostButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>Salvar</GhostButton>
           </>
         )}
       </div>

@@ -41,7 +41,7 @@ export function RelatorioAulaPage() {
         <Field label="Data">
           <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
         </Field>
-        <Field label="Escola">
+        <Field label="Congregação">
           <select className={inputClass} value={escolaId} disabled={!podeVerTudo} onChange={(e) => setEscolaId(e.target.value)}>
             {escolasVisiveis.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>

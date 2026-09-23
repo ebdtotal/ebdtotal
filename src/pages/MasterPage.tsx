@@ -363,7 +363,7 @@ export function MasterPage() {
               <th className="px-4 py-3">Nome</th>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Igreja</th>
-              <th className="px-4 py-3">Escola</th>
+              <th className="px-4 py-3">Congregação</th>
               <th className="px-4 py-3">Turma</th>
               <th className="px-4 py-3">Status</th>
             </tr>

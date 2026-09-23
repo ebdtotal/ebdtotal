@@ -1,7 +1,7 @@
 import { catalogoDeLicao, deduplicarLicoes, ehLicaoGeral } from './acompanhamento'
 import { MODELO_CERTIFICADO_PADRAO } from './certificado'
 import { CAT_OFERTA_EBD_ID, CAT_REVISTAS_VENDIDAS_ID, garantirCategorias, garantirSetoresEbd, idCategoria, idLancRevista, revistaGeraReceita } from './ebdSetores'
-import type { AppState, Aviso, Certificado, CursoProfessor, Desafio, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
+import type { AppState, Aviso, Certificado, CursoProfessor, EventoCalendario, Licao, MetaEscola, TipoEvento } from './types'
 import { toISODate } from './utils'
 
 export const ROTULO_EVENTO: Record<TipoEvento, string> = {
@@ -211,7 +211,7 @@ export function hidratarEstado(state: AppState): AppState {
     avaliacoes: state.avaliacoes ?? [],
     metas: state.metas ?? [],
     avisos: state.avisos ?? [],
-    desafios: state.desafios ?? [],
+    desafios: [],
     certificados: state.certificados ?? [],
     cursos: state.cursos ?? [],
     progressos: state.progressos ?? [],
@@ -354,11 +354,6 @@ export function metasSeed(escolaIds: string[]): MetaEscola[] {
 }
 
 export const AVISOS: Aviso[] = []
-
-export const DESAFIOS: Desafio[] = [
-  { id: 'dz1', titulo: '7 dias de Atos', descricao: 'Leia um capítulo de Atos por dia nesta semana.', ativo: true },
-  { id: 'dz2', titulo: 'Convide alguém', descricao: 'Traga um visitante até o fim do mês.', ativo: true },
-]
 
 export function certificadosSeed(): Certificado[] {
   return []

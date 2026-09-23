@@ -182,6 +182,7 @@ export async function apiIniciarAssinatura(payload: {
   email: string
   telefone: string
   plano: PlanoCheckoutId
+  cadastros?: number
   afiliadoCodigo?: string
 }) {
   return req<{ checkoutUrl: string; signupId: string; preco: number; plano: string; email: string; igreja: string }>(

@@ -134,9 +134,15 @@ export function relatorioPorAula(
     ofertaram,
     pontos,
     rows,
-    oferta: r?.oferta ?? 0,
-    visitantes: r?.visitantes ?? 0,
-    finalizado: r?.finalizado ?? false,
+    oferta: r?.classes?.length
+      ? (r.classes.find((c) => c.turma === turma)?.oferta ?? 0)
+      : (r?.oferta ?? 0),
+    visitantes: r?.classes?.length
+      ? (r.classes.find((c) => c.turma === turma)?.visitantes ?? 0)
+      : (r?.visitantes ?? 0),
+    finalizado: r?.classes?.length
+      ? !!r.classes.find((c) => c.turma === turma)?.salva
+      : (r?.finalizado ?? false),
   }
 }
 

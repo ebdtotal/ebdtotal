@@ -500,6 +500,22 @@ function PessoaModal({
     }
   }
 
+  function faixaDaTurma(nome: string, escolaId: string): FaixaEtaria | null {
+    const alvo = nome.trim().toLowerCase()
+    if (!alvo) return null
+    const turma = (state.turmas ?? []).find(
+      (t) => t.escolaId === escolaId && t.nome.trim().toLowerCase() === alvo,
+    )
+    if (!turma) return null
+    return (FAIXAS_ETARIAS as readonly string[]).includes(turma.faixaEtaria) ? turma.faixaEtaria : null
+  }
+
+  function atualizarTurma(nome: string) {
+    if (!form) return
+    const faixa = faixaDaTurma(nome, form.escolaId)
+    setForm({ ...form, turma: nome, ...(faixa ? { faixaEtaria: faixa } : {}) })
+  }
+
   const mostraAcesso = form ? precisaAcessoApp(form.tipo) && form.status === 'Ativo' : false
 
   return (
@@ -519,7 +535,15 @@ function PessoaModal({
             <input className={inputClass} required value={form.nome} onChange={(e) => atualizarNome(e.target.value)} />
           </Field>
           <Field label="Congregação">
-            <select className={inputClass} value={form.escolaId} onChange={(e) => setForm({ ...form, escolaId: e.target.value })}>
+            <select
+              className={inputClass}
+              value={form.escolaId}
+              onChange={(e) => {
+                const escolaId = e.target.value
+                const faixa = faixaDaTurma(form.turma, escolaId)
+                setForm({ ...form, escolaId, ...(faixa ? { faixaEtaria: faixa } : {}) })
+              }}
+            >
               {escolasVisiveis.map((e) => (
                 <option key={e.id} value={e.id}>{e.nome}</option>
               ))}
@@ -529,7 +553,7 @@ function PessoaModal({
             <DateInput value={form.dataNascimento} onChange={(dataNascimento) => setForm({ ...form, dataNascimento })} />
           </Field>
           <Field label="Turma">
-            <input className={inputClass} list="turmas-cadastro" value={form.turma} onChange={(e) => setForm({ ...form, turma: e.target.value })} />
+            <input className={inputClass} list="turmas-cadastro" value={form.turma} onChange={(e) => atualizarTurma(e.target.value)} />
             <datalist id="turmas-cadastro">
               {(state.turmas ?? [])
                 .filter((t) => t.escolaId === form.escolaId)

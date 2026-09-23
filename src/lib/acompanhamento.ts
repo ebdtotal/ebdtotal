@@ -20,7 +20,6 @@ export type FichaAluno = {
     evolucao: number
     aprendizado: number
     leitura: number
-    projetos: number
   }
 }
 
@@ -63,7 +62,6 @@ export function fichaAluno(state: AppState, pessoaId: string): FichaAluno | null
     ? Math.round((quizzes.length / Math.max(1, state.avaliacoes.filter((a) => a.turma === pessoa.turma).length)) * 100)
     : 0
   const evolucao = tendencia === 'alta' ? 80 : tendencia === 'estavel' ? 55 : 25
-  const projetos = state.desafios.filter((d) => d.ativo).length ? (frequencia > 70 ? 70 : 40) : 0
 
   const acao =
     seg >= 2 || tendencia === 'queda'
@@ -82,7 +80,7 @@ export function fichaAluno(state: AppState, pessoaId: string): FichaAluno | null
     ultimaPresenca,
     faltasSeguidas: seg,
     acao,
-    indicadores: { frequencia, participacao: part, atividades, evolucao, aprendizado, leitura, projetos },
+    indicadores: { frequencia, participacao: part, atividades, evolucao, aprendizado, leitura },
   }
 }
 

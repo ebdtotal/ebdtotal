@@ -261,7 +261,7 @@ export function ConfiguracoesPage() {
               </select>
             </Field>
             {['escola', 'secretario', 'professor', 'aluno', 'superintendente'].includes(userForm.papel) ? (
-              <Field label="Escola">
+              <Field label="Congregação">
                 <select
                   className={inputClass}
                   value={userForm.escolaId ?? ''}

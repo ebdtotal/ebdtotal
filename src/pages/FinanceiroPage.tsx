@@ -199,7 +199,7 @@ function AbaLancamentos() {
           <table className="data w-full min-w-[800px] text-left">
             <thead>
               <tr>
-                {['Data', 'Escola', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor', ''].map((h) => (
+                {['Data', 'Congregação', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor', ''].map((h) => (
                   <th key={h || 'a'} className="px-3 py-3">
                     {h}
                   </th>
@@ -259,7 +259,7 @@ function AbaLancamentos() {
             <Field label="Data">
               <DateInput value={editing.data} onChange={(data) => setEditing({ ...editing, data })} />
             </Field>
-            <Field label="Escola">
+            <Field label="Congregação">
               <select
                 className={inputClass}
                 value={editing.escolaId}
@@ -279,7 +279,7 @@ function AbaLancamentos() {
                 value={editing.turma ?? ''}
                 onChange={(e) => setEditing({ ...editing, turma: e.target.value || undefined })}
               >
-                <option value="">Toda a escola</option>
+                <option value="">Toda a congregação</option>
                 {turmasDaEscola.map((t) => (
                   <option key={t.id} value={t.nome}>
                     {t.nome}
@@ -533,7 +533,7 @@ function AbaRelatorios() {
   }
 
   function subtituloFiltro() {
-    const esc = todasEscolas || escolaIds.length === 0 ? 'Todas as escolas' : escolasVisiveis.filter((e) => escolaIds.includes(e.id)).map((e) => e.nome).join(', ')
+    const esc = todasEscolas || escolaIds.length === 0 ? 'Todas as congregações' : escolasVisiveis.filter((e) => escolaIds.includes(e.id)).map((e) => e.nome).join(', ')
     const tps = naturezas.length === 1 ? (naturezas[0] === 'receita' ? 'Receitas' : 'Despesas') : 'Receitas e despesas'
     const cts = todasCats || cats.length === 0 ? 'Todas as categorias' : cats.map((id) => nomeCat(id)).join(', ')
     const trm = setTurmasFiltro ? turmasSel.map((k) => k.split('|')[1]).join(', ') : 'Todas as classes'
@@ -545,7 +545,7 @@ function AbaRelatorios() {
       `financeiro-${de}-${ate}`,
       lista.map((l) => ({
         Data: formatDateBR(l.data),
-        Escola: nomeEscola(state.escolas, l.escolaId),
+        Congregação: nomeEscola(state.escolas, l.escolaId),
         Turma: l.turma || '',
         Tipo: rotuloTipo(l.tipo),
         Categoria: nomeCat(l.categoriaId),
@@ -564,10 +564,10 @@ function AbaRelatorios() {
     const graficos = `<div class="graficos">
       <div class="graf"><h2>Receitas, despesas e saldo</h2>${barrasHtml(resumoBarras)}</div>
       <div class="graf"><h2>Por categoria</h2>${porCat.length ? pizzaHtml(porCat) : '<p>Sem dados</p>'}</div>
-      <div class="graf"><h2>Por escola</h2>${porEscola.length ? barrasHtml(porEscola) : '<p>Sem dados</p>'}</div>
+      <div class="graf"><h2>Por congregação</h2>${porEscola.length ? barrasHtml(porEscola) : '<p>Sem dados</p>'}</div>
     </div>`
     const tabela = tabelaHtml(
-      ['Data', 'Escola', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor'],
+      ['Data', 'Congregação', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor'],
       lista.map((l) => [
         formatDateBR(l.data),
         nomeEscola(state.escolas, l.escolaId),
@@ -631,7 +631,7 @@ function AbaRelatorios() {
           </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="Escolas">
+          <Field label="Congregações">
             <label className="mb-2 flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -709,7 +709,7 @@ function AbaRelatorios() {
           {porCat.length ? <Pizza itens={porCat} /> : <p className="text-sm text-muted">Sem dados no filtro.</p>}
         </section>
         <section className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-2 font-semibold">Por escola</h2>
+          <h2 className="mb-2 font-semibold">Por congregação</h2>
           {porEscola.length ? <Barras itens={porEscola} /> : <p className="text-sm text-muted">Sem dados no filtro.</p>}
         </section>
       </div>
@@ -730,7 +730,7 @@ function AbaRelatorios() {
           <table className="data w-full min-w-[800px] text-left">
             <thead>
               <tr>
-                {['Data', 'Escola', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor', ''].map((h) => (
+                {['Data', 'Congregação', 'Turma', 'Tipo', 'Categoria', 'Descrição', 'Valor', ''].map((h) => (
                   <th key={h || 'a'} className="px-3 py-3">
                     {h}
                   </th>
@@ -929,7 +929,7 @@ function AbaRevistas() {
       linhas.map(({ p, r }) => ({
         Nome: p.nome,
         Tipo: p.tipo,
-        Escola: nomeEscola(state.escolas, p.escolaId),
+        Congregação: nomeEscola(state.escolas, p.escolaId),
         Turma: p.turma,
         Pediu: r.pediu ? 'Sim' : 'Não',
         Recebeu: r.recebeu ? 'Sim' : 'Não',
@@ -945,7 +945,7 @@ function AbaRevistas() {
     const html = htmlDocumentoPdf(
       `Revistas — ${tri}º trimestre ${ano}`,
       `${tabelaHtml(
-        ['Nome', 'Tipo', 'Escola', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Data pagamento', 'Situação'],
+        ['Nome', 'Tipo', 'Congregação', 'Turma', 'Pediu', 'Recebeu', 'Pagou', 'Valor', 'Data pagamento', 'Situação'],
         linhas.map(({ p, r }) => [
           p.nome,
           p.tipo,
@@ -994,7 +994,7 @@ function AbaRevistas() {
           </Field>
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" checked={todasEscolas} onChange={(e) => { setTodasEscolas(e.target.checked); if (e.target.checked) setEscolaIds([]) }} />
-            Todas as escolas
+            Todas as congregações
           </label>
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" checked={todasTurmas} onChange={(e) => { setTodasTurmas(e.target.checked); if (e.target.checked) setTurmasSel([]) }} />

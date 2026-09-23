@@ -8,7 +8,7 @@ import type {
   TipoPessoa,
 } from './types'
 import { chamadaVazia } from './types'
-import { AVISOS, CURSOS, DESAFIOS, eventosSeed, hidratarEstado, LICOES, metasSeed } from './pedagogia'
+import { AVISOS, CURSOS, eventosSeed, hidratarEstado, LICOES, metasSeed } from './pedagogia'
 import { CATEGORIAS_FINANCEIRAS_PADRAO, SETORES_EBD_PADRAO } from './ebdSetores'
 import { WHATSAPP_SUPORTE } from './utils'
 
@@ -338,7 +338,7 @@ export function createEmptyIgrejaState(nomeIgreja = 'Minha EBD'): AppState {
     avaliacoes: [],
     metas: metasSeed([escolaId]),
     avisos: AVISOS,
-    desafios: DESAFIOS,
+    desafios: [],
     certificados: [],
     modeloCertificado: undefined,
     licoesRemovidas: [],

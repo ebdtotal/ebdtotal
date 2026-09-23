@@ -100,6 +100,20 @@ export type ChamadaAluno = {
   pontosParticipacao?: number
 }
 
+/** Chamada e oferta de uma classe no dia. Cada classe é salva à parte. */
+export type ChamadaClasse = {
+  turma: string
+  oferta: number
+  visitantes: number
+  biblias: number
+  revistas: number
+  anotacao?: string
+  /** true depois que o usuário clica em Salvar ou Finalizar nesta classe. */
+  salva: boolean
+  /** true só quando esta classe foi finalizada. Não trava as outras. */
+  finalizada?: boolean
+}
+
 export type RelatorioDiario = {
   id: string
   escolaId: string
@@ -115,7 +129,13 @@ export type RelatorioDiario = {
   bibliasProfessores?: number
   revistasProfessores?: number
   ofertaProfessores?: number
+  /** Todas as classes do dia já foram salvas. */
   finalizado: boolean
+  /** Chamada dos professores enviada, independente das classes. */
+  professoresSalva?: boolean
+  professoresFinalizada?: boolean
+  /** Oferta, visitantes e status de cada classe. O total do dia é a soma. */
+  classes?: ChamadaClasse[]
   alunos: ChamadaAluno[]
   updatedAt?: string
 }

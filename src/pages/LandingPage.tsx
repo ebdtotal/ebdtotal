@@ -21,7 +21,7 @@ import { Field, Modal, PrimaryButton, inputClass } from '../components/ui'
 import { apiAgendarDemo } from '../lib/api'
 import { ativarAfiliadoDaVisita, lerAfiliadoRef } from '../lib/afiliado'
 import { APP_STORE_URL, WHATSAPP_SUPORTE_LINK } from '../lib/landing'
-import { formatarBRL, PLANOS, PRODUTOS, valorParcela } from '../lib/planos'
+import { formatarBRL, PLANOS, PRODUTOS, simularCustoPorAluno, valorParcela, type ProdutoId } from '../lib/planos'
 import { WHATSAPP_SUPORTE, whatsappUrl } from '../lib/utils'
 
 const RECURSOS = [
@@ -78,7 +78,14 @@ export function LandingPage() {
   }, [location.search, location.pathname])
 
   const assinar = whatsappUrl(WHATSAPP_SUPORTE, 'Olá! Quero assinar o EBD Total para a minha igreja.')
-  const linkAssine = (plano: string) => (ref ? `/assine?plano=${plano}&ref=${encodeURIComponent(ref)}` : `/assine?plano=${plano}`)
+  const linkAssine = (plano: string, cadastros?: number) => {
+    const qs = new URLSearchParams({ plano })
+    if (ref) qs.set('ref', ref)
+    if (cadastros != null && cadastros > PRODUTOS.igreja.pessoas) {
+      qs.set('cadastros', String(cadastros))
+    }
+    return `/assine?${qs.toString()}`
+  }
 
   function abrirDemo() {
     setErro(null)
@@ -124,6 +131,9 @@ export function LandingPage() {
             </a>
             <a href="#planos" className="hover:text-gold">
               PLANOS
+            </a>
+            <a href="#calculadora" className="hover:text-gold">
+              CALCULADORA
             </a>
             <a href="mailto:contato@ebdtotal.com" className="hover:text-gold">
               CONTATO
@@ -312,9 +322,15 @@ export function LandingPage() {
                 Fale conosco
               </a>
             </p>
+            <p className="mt-3 text-center text-xs leading-relaxed text-navy/80">
+              No plano Igreja, igrejas com mais de <strong>600 cadastros</strong> pagam{' '}
+              <strong>R$ 2,50 por cadastro adicional</strong> no ano.
+            </p>
           </div>
         </div>
       </section>
+
+      <CalculadoraCustoPorAluno linkAssine={linkAssine} />
 
       {/* Footer CTA */}
       <section id="contato" className="bg-navy py-8 text-white">
@@ -425,6 +441,157 @@ export function LandingPage() {
         )}
       </Modal>
     </div>
+  )
+}
+
+function CalculadoraCustoPorAluno({
+  linkAssine,
+}: {
+  linkAssine: (plano: string, cadastros?: number) => string
+}) {
+  const [produto, setProduto] = useState<ProdutoId>('igreja')
+  const [cadastros, setCadastros] = useState(600)
+  const sim = simularCustoPorAluno(produto, cadastros)
+  const precisaIgreja = produto === 'essencial' && sim.acimaDoLimite
+  const comExtrasIgreja = produto === 'igreja' && sim.acimaDoLimite
+  const planoCheckout = precisaIgreja ? 'igreja' : produto
+  const cadastrosNoLink = comExtrasIgreja ? sim.cadastros : undefined
+
+  return (
+    <section id="calculadora" className="bg-white py-14 md:py-16">
+      <div className="mx-auto max-w-3xl px-4">
+        <h2 className="text-center text-xl font-bold text-navy md:text-2xl">Simule o custo por aluno</h2>
+        <p className="mx-auto mt-2 max-w-xl text-center text-sm text-muted">
+          Escolha o plano e a quantidade de cadastros. O valor anual dividido pelos alunos e por 12 mostra quanto sai por pessoa no mês.
+        </p>
+
+        <div className="mt-8 space-y-5">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Plano</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                { id: 'essencial' as const, nome: 'Essencial', detalhe: `Até ${PRODUTOS.essencial.pessoas} cadastros` },
+                { id: 'igreja' as const, nome: 'Igreja', detalhe: `Até ${PRODUTOS.igreja.pessoas} + R$ 2,50 acima` },
+              ]).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setProduto(p.id)
+                    setCadastros(PRODUTOS[p.id].pessoas)
+                  }}
+                  className={`rounded-xl border-2 px-4 py-3 text-left ${
+                    produto === p.id ? 'border-navy bg-navy text-white' : 'border-navy/15 bg-[#f7f8fa] text-navy'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{p.nome}</span>
+                  <span className={`mt-0.5 block text-xs ${produto === p.id ? 'text-white/75' : 'text-muted'}`}>
+                    {formatarBRL(PLANOS[p.id].preco)}/ano · {p.detalhe}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="calc-cadastros" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted">
+              Quantidade de cadastros
+            </label>
+            <input
+              id="calc-cadastros"
+              type="number"
+              min={1}
+              max={20000}
+              step={1}
+              value={cadastros}
+              onChange={(e) => setCadastros(Math.max(1, Number(e.target.value) || 1))}
+              className="w-full rounded-xl border border-navy/15 bg-[#f7f8fa] px-4 py-3 text-base font-semibold text-navy outline-none focus:border-gold"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-[#f7f8fa] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Plano base</p>
+              <p className="mt-1 text-lg font-bold text-navy">{formatarBRL(sim.precoBase)}</p>
+            </div>
+            <div className="rounded-xl bg-[#f7f8fa] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Extras</p>
+              <p className="mt-1 text-lg font-bold text-navy">
+                {sim.extras > 0 ? formatarBRL(sim.extras) : '—'}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[#f7f8fa] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Total no ano</p>
+              <p className="mt-1 text-lg font-bold text-navy">{formatarBRL(sim.totalAno)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gold/50 bg-[#f7efd8] px-5 py-5 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy/60">Custo por aluno / mês</p>
+            <p className="mt-1 text-3xl font-bold text-navy">{formatarBRL(sim.porAlunoMes)}</p>
+            <p className="mt-2 text-sm text-navy/75">
+              {formatarBRL(sim.porAluno)} por aluno no ano · {formatarBRL(sim.totalAno)} ÷ {sim.cadastros} ÷ 12
+            </p>
+          </div>
+
+          {comExtrasIgreja ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-navy/15 px-4 py-4 text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">À vista</p>
+                <p className="mt-1 text-xl font-bold text-navy">{formatarBRL(sim.totalAno)}</p>
+                <p className="mt-1 text-xs text-muted">Valor do cálculo</p>
+              </div>
+              <div className="rounded-xl border border-navy/15 px-4 py-4 text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Até 12x</p>
+                <p className="mt-1 text-xl font-bold text-navy">{formatarBRL(sim.parcelaMensal)}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {formatarBRL(sim.totalAno)} ÷ 10 · total {formatarBRL(sim.totalParcelado)}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {comExtrasIgreja ? (
+            <p className="text-center text-sm text-navy/80">
+              Inclui {sim.cadastros - sim.limite} cadastros extras × R$ 2,50 = {formatarBRL(sim.extras)}. O link de
+              pagamento usa este total.
+            </p>
+          ) : null}
+
+          {precisaIgreja ? (
+            <p className="text-center text-sm text-amber-800">
+              O Essencial cobre até {PRODUTOS.essencial.pessoas} cadastros. Para {sim.cadastros}, escolha o plano Igreja.
+            </p>
+          ) : null}
+
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            {comExtrasIgreja ? (
+              <>
+                <Link
+                  to={linkAssine('igreja', sim.cadastros)}
+                  className="inline-flex rounded-full bg-navy px-6 py-3 text-xs font-bold tracking-wide text-white"
+                >
+                  PAGAR À VISTA · {formatarBRL(sim.totalAno)}
+                </Link>
+                <Link
+                  to={linkAssine('igreja12', sim.cadastros)}
+                  className="inline-flex rounded-full border-2 border-navy px-6 py-3 text-xs font-bold tracking-wide text-navy"
+                >
+                  PAGAR EM 12× · {formatarBRL(sim.parcelaMensal)}
+                </Link>
+              </>
+            ) : (
+              <Link
+                to={linkAssine(planoCheckout, cadastrosNoLink)}
+                className="inline-flex rounded-full bg-navy px-6 py-3 text-xs font-bold tracking-wide text-white"
+              >
+                QUERO ESTE PLANO
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 

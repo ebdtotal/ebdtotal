@@ -170,17 +170,6 @@ export function PortalAlunoPage() {
         </section>
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-3 font-semibold">Desafios</h2>
-          <ul className="space-y-2 text-sm">
-            {state.desafios.filter((d) => d.ativo).map((d) => (
-              <li key={d.id}>
-                <b>{d.titulo}.</b> {d.descricao}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="mb-3 font-semibold">Aniversários</h2>
           {nivers.length === 0 ? (
             <p className="text-sm text-muted">Nenhum aniversário próximo.</p>

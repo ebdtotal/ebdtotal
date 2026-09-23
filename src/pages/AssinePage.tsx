@@ -6,7 +6,7 @@ import { Field, PrimaryButton, inputClass } from '../components/ui'
 import { apiIniciarAssinatura, apiStatusAssinatura } from '../lib/api'
 import { ativarAfiliadoDaVisita, lerAfiliadoRef } from '../lib/afiliado'
 import { WHATSAPP_SUPORTE_LINK } from '../lib/landing'
-import { checkoutDo, formatarBRL, PLANOS, planoValido, PRODUTOS, valorParcela, type PagamentoId, type PlanoCheckoutId, type ProdutoId } from '../lib/planos'
+import { checkoutDo, formatarBRL, PLANOS, planoValido, precoIgrejaComCadastros, PRODUTOS, valorParcela, type PagamentoId, type PlanoCheckoutId, type ProdutoId } from '../lib/planos'
 
 function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -28,8 +28,10 @@ export function AssinePage() {
   const [params] = useSearchParams()
   const location = useLocation()
   const inicial = planoValido(params.get('plano'))
+  const cadastrosParam = Math.max(0, Math.floor(Number(params.get('cadastros')) || 0))
+  const precoExtra = cadastrosParam > PRODUTOS.igreja.pessoas ? precoIgrejaComCadastros(cadastrosParam) : null
   const [form, setForm] = useState({ nome: '', cidade: '', responsavel: '', email: '', telefone: '' })
-  const [produto, setProduto] = useState<ProdutoId>(PLANOS[inicial].produto)
+  const [produto, setProduto] = useState<ProdutoId>(precoExtra ? 'igreja' : PLANOS[inicial].produto)
   const [pagamento, setPagamento] = useState<PagamentoId>(
     PLANOS[inicial].pagamento === 'teste' ? 'avista' : PLANOS[inicial].pagamento,
   )
@@ -39,6 +41,17 @@ export function AssinePage() {
   const plano: PlanoCheckoutId = teste ? 'teste' : checkoutDo(produto, pagamento)
   const escolhido = PLANOS[plano]
   const def = PRODUTOS[produto]
+  const avistaExibido = precoExtra && produto === 'igreja' ? precoExtra.avista : PLANOS[checkoutDo(produto, 'avista')].preco
+  const parcelaExibida =
+    precoExtra && produto === 'igreja' ? precoExtra.parcela : valorParcela(checkoutDo(produto, 'parcelado'))
+  const totalExibido =
+    teste
+      ? escolhido.preco
+      : precoExtra && produto === 'igreja'
+        ? pagamento === 'parcelado'
+          ? precoExtra.parcelado
+          : precoExtra.avista
+        : escolhido.preco
 
   useEffect(() => {
     void ativarAfiliadoDaVisita(location.search, location.pathname)
@@ -54,6 +67,12 @@ export function AssinePage() {
         Cadastre a igreja, pague o plano anual e receba o usuário e a senha no e-mail. O app libera as telas do plano
         escolhido.
       </p>
+      {precoExtra ? (
+        <p className="mt-3 rounded-xl bg-[#f7efd8] px-4 py-3 text-sm text-navy">
+          Simulação com <b>{precoExtra.cadastros}</b> cadastros ({precoExtra.cadastros - precoExtra.limite} extras × R$
+          2,50). À vista {formatarBRL(precoExtra.avista)} ou 12× de {formatarBRL(precoExtra.parcela)}.
+        </p>
+      ) : null}
       <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">Plano</p>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {(['essencial', 'igreja'] as const).map((id) => (
@@ -67,7 +86,12 @@ export function AssinePage() {
             }}
           >
             <p className="text-sm font-semibold">{PRODUTOS[id].nome}</p>
-            <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS[checkoutDo(id, 'avista')].preco)}/ano</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatarBRL(
+                precoExtra && id === 'igreja' ? precoExtra.avista : PLANOS[checkoutDo(id, 'avista')].preco,
+              )}
+              /ano
+            </p>
             <p className={`mt-1 text-xs ${!teste && produto === id ? 'text-white/80' : 'text-muted'}`}>
               {PRODUTOS[id].descricao}
             </p>
@@ -85,7 +109,7 @@ export function AssinePage() {
           }}
         >
           <p className="text-sm font-semibold">À vista</p>
-          <p className="mt-1 text-lg font-semibold">{formatarBRL(PLANOS[checkoutDo(produto, 'avista')].preco)}</p>
+          <p className="mt-1 text-lg font-semibold">{formatarBRL(avistaExibido)}</p>
         </button>
         <button
           type="button"
@@ -96,9 +120,7 @@ export function AssinePage() {
           }}
         >
           <p className="text-sm font-semibold">Até 12x</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatarBRL(valorParcela(checkoutDo(produto, 'parcelado')))}
-          </p>
+          <p className="mt-1 text-lg font-semibold">{formatarBRL(parcelaExibida)}</p>
         </button>
         {params.get('plano') === 'teste' ? (
           <button
@@ -125,6 +147,7 @@ export function AssinePage() {
           void apiIniciarAssinatura({
             ...form,
             plano,
+            cadastros: precoExtra && produto === 'igreja' ? precoExtra.cadastros : undefined,
             afiliadoCodigo: lerAfiliadoRef() || undefined,
           })
             .then((r) => {
@@ -170,8 +193,10 @@ export function AssinePage() {
           .{' '}
           {teste
             ? `${escolhido.nome}: ${formatarBRL(escolhido.preco)} para validar o pagamento e o e-mail.`
-            : `${escolhido.nome}: ${formatarBRL(escolhido.preco)}/ano${
-                escolhido.parcelas > 1 ? ` em até 12x de ${formatarBRL(valorParcela(plano))}` : ' no pagamento único'
+            : `${escolhido.nome}: ${formatarBRL(totalExibido)}/ano${
+                pagamento === 'parcelado' && !teste
+                  ? ` em até 12x de ${formatarBRL(parcelaExibida)}`
+                  : ' no pagamento único'
               }.`}
         </p>
         <PrimaryButton type="submit" className="w-full" disabled={enviando}>

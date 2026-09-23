@@ -93,7 +93,9 @@ export function SetoresPage() {
           apr: pct(presentes, matriculados),
           balanco: rec - desp,
           financeiro: rec,
-          finalizado: r?.finalizado ?? false,
+          finalizado: r?.classes?.length
+            ? !!r.classes.find((c) => c.turma === turma.nome)?.salva
+            : (r?.finalizado ?? false),
         }
       })
       .filter((r) => matches(`${r.nome} ${r.escola} ${r.setor}`, busca))
@@ -146,7 +148,7 @@ export function SetoresPage() {
       slice.map((r) => ({
         Nome: r.nome,
         Setor: r.setor,
-        Escola: r.escola,
+        Congregação: r.escola,
         Matriculados: r.matriculados,
         Presentes: r.presentes,
         Ausentes: r.ausentes,

@@ -104,6 +104,7 @@ export const PRODUTOS: Record<
     itens: [
       'Congregações ilimitadas',
       'Até 600 cadastros',
+      'Acima de 600: + R$ 2,50 por cadastro',
       'Painel, metas, financeiro e certificados',
       'Formação de professores e auditoria',
     ],
@@ -285,5 +286,61 @@ export function avisoRenovacaoPlano(igreja: IgrejaSessao | null | undefined): { 
         ? `O plano ${rotuloProduto(igreja.plano)} vence hoje (${quando}). Renove em Minha conta para alunos e professores continuarem no app.`
         : `Faltam ${dias} dia${dias === 1 ? '' : 's'} para o término do plano ${rotuloProduto(igreja.plano)} (${quando}). Renove em Minha conta para não interromper o acesso de alunos e professores.`,
     data: validade,
+  }
+}
+
+/** Extra anual por cadastro além do limite do plano Igreja. */
+export const EXTRA_POR_CADASTRO_IGREJA = 2.5
+
+/** Parcela mensal em 12x = valor à vista ÷ 10 (total parcelado = à vista × 1,2). */
+export const DIVISOR_PARCELA_12X = 10
+
+export function precoParceladoDe(avista: number): number {
+  return Math.round(avista * (12 / DIVISOR_PARCELA_12X) * 100) / 100
+}
+
+export function parcelaDe(avista: number): number {
+  return Math.round((avista / DIVISOR_PARCELA_12X) * 100) / 100
+}
+
+/** Preço Igreja com extras só acima de 600 cadastros. */
+export function precoIgrejaComCadastros(cadastrosInformados: number) {
+  const cadastros = Math.max(1, Math.floor(cadastrosInformados) || 1)
+  const limite = PRODUTOS.igreja.pessoas
+  const precoBase = PLANOS.igreja.preco
+  const extras = cadastros > limite ? (cadastros - limite) * EXTRA_POR_CADASTRO_IGREJA : 0
+  const avista = precoBase + extras
+  return {
+    cadastros,
+    limite,
+    precoBase,
+    extras,
+    avista,
+    parcelado: precoParceladoDe(avista),
+    parcela: parcelaDe(avista),
+    comExtras: extras > 0,
+  }
+}
+
+export function simularCustoPorAluno(produto: ProdutoId, cadastrosInformados: number) {
+  const cadastros = Math.max(1, Math.floor(cadastrosInformados) || 1)
+  const plano = produto === 'essencial' ? PLANOS.essencial : PLANOS.igreja
+  const limite = PRODUTOS[produto].pessoas
+  const extras =
+    produto === 'igreja' && cadastros > limite ? (cadastros - limite) * EXTRA_POR_CADASTRO_IGREJA : 0
+  const totalAno = plano.preco + extras
+  const porAluno = totalAno / cadastros
+  const porAlunoMes = porAluno / 12
+  return {
+    cadastros,
+    limite,
+    precoBase: plano.preco,
+    extras,
+    totalAno,
+    totalParcelado: precoParceladoDe(totalAno),
+    parcelaMensal: parcelaDe(totalAno),
+    porAluno,
+    porAlunoMes,
+    acimaDoLimite: cadastros > limite,
   }
 }

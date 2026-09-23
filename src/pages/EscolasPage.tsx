@@ -46,9 +46,9 @@ export function EscolasPage() {
     <div>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Escolas</h1>
+          <h1 className="text-2xl font-semibold text-ink">Congregações</h1>
           <p className="text-sm text-muted">
-            Lista de escolas associadas ou esperando aprovação
+            Lista de congregações associadas ou esperando aprovação
             {limiteEscolas < 9999 ? ` · ${state.escolas.length} de ${limiteEscolas} congregação(ões) do plano` : ''}
           </p>
         </div>
@@ -105,7 +105,7 @@ export function EscolasPage() {
                 escolasVisiveis.some((e) => e.nome.toLowerCase() === nome.toLowerCase()) ||
                 novas.some((e) => e.nome.toLowerCase() === nome.toLowerCase())
               if (ja) {
-                erros.push(`Linha ${linha}: escola "${nome}" já cadastrada`)
+                erros.push(`Linha ${linha}: congregação "${nome}" já cadastrada`)
                 return
               }
               novas.push({
@@ -134,7 +134,7 @@ export function EscolasPage() {
       <section className="mb-5 rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">
-            Escolas associadas ({totais.alunos} alunos e professores)
+            Congregações associadas ({totais.alunos} alunos e professores)
           </h2>
           <PrimaryButton onClick={exportar}>
             <Download size={16} /> Excel
@@ -212,7 +212,7 @@ export function EscolasPage() {
       />
       <Confirmacao
         open={!!excluirEscola}
-        titulo="Excluir escola"
+        titulo="Excluir congregação"
         texto={`Excluir “${excluirEscola?.nome ?? ''}”? Cadastros e turmas desta congregação também saem.`}
         onCancel={() => setExcluirEscola(null)}
         onConfirm={() => {
@@ -237,7 +237,7 @@ function EscolaModal({
   if (escola && form?.id !== escola.id) setForm(escola)
 
   return (
-    <Modal open={!!escola} title="Filial / Escola" onClose={onClose} wide>
+    <Modal open={!!escola} title="Congregação" onClose={onClose} wide>
       {form ? (
         <form
           className="grid grid-cols-1 gap-4 sm:grid-cols-2"

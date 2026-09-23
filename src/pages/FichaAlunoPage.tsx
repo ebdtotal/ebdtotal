@@ -11,7 +11,6 @@ const LABELS: Record<string, string> = {
   evolucao: 'Evolução',
   aprendizado: 'Aprendizado',
   leitura: 'Leitura bíblica',
-  projetos: 'Projetos',
 }
 
 export function FichaAlunoPage() {

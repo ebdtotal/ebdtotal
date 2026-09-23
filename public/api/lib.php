@@ -196,6 +196,7 @@ function migrate(PDO $pdo): void {
   ensure_column($pdo, 'signups', 'plano', "plano TEXT DEFAULT 'avista'");
   ensure_column($pdo, 'signups', 'upgrade_tenant_id', "upgrade_tenant_id TEXT DEFAULT ''");
   ensure_column($pdo, 'signups', 'preco', 'preco REAL DEFAULT 0');
+  ensure_column($pdo, 'signups', 'cadastros', 'cadastros INTEGER DEFAULT 0');
   $pdo->exec("CREATE TABLE IF NOT EXISTS demos (
     id TEXT PRIMARY KEY,
     nome TEXT NOT NULL,
@@ -913,7 +914,7 @@ function igreja_publica(PDO $pdo, string $tenantId): ?array {
   ];
 }
 
-function plano_assinatura(string $plano): array {
+function plano_assinatura(string $plano, int $cadastros = 0): array {
   $p = cfg()['pagamento'] ?? [];
   $precos = [
     'essencial' => (float)($p['preco_essencial'] ?? 499),
@@ -934,6 +935,18 @@ function plano_assinatura(string $plano): array {
   $preco = $precos[$id] ?? $precos['igreja'];
   if ($preco <= 0) $preco = $precos['igreja'];
   $ent = entitlements_produto(produto_do_checkout($id));
+  $limite = (int)($ent['pessoas'] ?? 600);
+  $extraUnit = 2.5;
+  $extras = 0.0;
+  $cad = max(0, $cadastros);
+  // Extras só no plano Igreja e só acima de 600 cadastros.
+  if (($id === 'igreja' || $id === 'igreja12') && $cad > $limite) {
+    $extras = ($cad - $limite) * $extraUnit;
+    $avista = (float)$precos['igreja'] + $extras;
+    // 12x: parcela = à vista ÷ 10 → total parcelado = à vista × 1,2
+    $preco = $parcelas > 1 ? round($avista * 1.2, 2) : round($avista, 2);
+    $titulos[$id] .= $cad > $limite ? (' · ' . $cad . ' cadastros') : '';
+  }
   return [
     'id' => $id,
     'produto' => $ent['produto'],
@@ -941,11 +954,13 @@ function plano_assinatura(string $plano): array {
     'parcelas' => $parcelas,
     'titulo' => $titulos[$id] ?? 'EBD Total — plano anual',
     'pessoas' => $ent['pessoas'],
+    'cadastros' => $cad,
+    'extras' => $extras,
   ];
 }
 
-function preco_assinatura(string $plano = 'avista'): float {
-  return (float)plano_assinatura($plano)['preco'];
+function preco_assinatura(string $plano = 'avista', int $cadastros = 0): float {
+  return (float)plano_assinatura($plano, $cadastros)['preco'];
 }
 
 function http_json(string $method, string $url, array $headers, ?string $payload): array {
@@ -1155,7 +1170,10 @@ function iniciar_assinatura(PDO $pdo, array $in): array {
   $cidade = trim((string)($in['cidade'] ?? ''));
   $telefone = trim((string)($in['telefone'] ?? ''));
   $planoId = plano_id((string)($in['plano'] ?? ''));
-  $plano = plano_assinatura($planoId);
+  $cadastros = (int)($in['cadastros'] ?? 0);
+  if ($cadastros < 0) $cadastros = 0;
+  if ($cadastros > 20000) $cadastros = 20000;
+  $plano = plano_assinatura($planoId, $cadastros);
   if ($nome === '' || $responsavel === '') json_err('Informe o nome da igreja e o responsável.');
   if (!email_valido($email)) json_err('Informe um e-mail válido. Enviaremos o login e a senha para ele após o pagamento.');
 
@@ -1172,17 +1190,17 @@ function iniciar_assinatura(PDO $pdo, array $in): array {
   $now = gmdate('c');
   $afiliado = normalizar_codigo_afiliado((string)($in['afiliadoCodigo'] ?? $in['afiliado_codigo'] ?? $in['ref'] ?? ''));
   if ($afiliado !== '' && !afiliado_ativo($pdo, $afiliado)) $afiliado = '';
+  $preco = (float)$plano['preco'];
   if ($exist) {
-    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=?, upgrade_tenant_id=?, afiliado_codigo=COALESCE(NULLIF(afiliado_codigo,\'\'), ?) WHERE id=?')
-      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $upgradeTid, $afiliado, $sid]);
+    $pdo->prepare('UPDATE signups SET nome=?, cidade=?, responsavel=?, telefone=?, plano=?, preco=?, cadastros=?, upgrade_tenant_id=?, afiliado_codigo=COALESCE(NULLIF(afiliado_codigo,\'\'), ?) WHERE id=?')
+      ->execute([$nome, $cidade, $responsavel, $telefone, $planoId, $preco, $cadastros, $upgradeTid, $afiliado, $sid]);
   } else {
-    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,created_at,upgrade_tenant_id,afiliado_codigo) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $now, $upgradeTid, $afiliado]);
+    $pdo->prepare('INSERT INTO signups (id,nome,cidade,responsavel,email,telefone,status,plano,preco,cadastros,created_at,upgrade_tenant_id,afiliado_codigo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      ->execute([$sid, $nome, $cidade, $responsavel, $email, $telefone, 'pendente', $planoId, $preco, $cadastros, $now, $upgradeTid, $afiliado]);
   }
 
   $token = trim((string)(cfg()['pagamento']['mp_access_token'] ?? ''));
   $link = trim((string)(cfg()['pagamento']['link_pagamento'] ?? ''));
-  $preco = (float)$plano['preco'];
   $base = site_url();
 
   if ($token !== '') {
@@ -1240,6 +1258,8 @@ function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): arra
   }
 
   $checkout = plano_id((string)($row['plano'] ?? 'igreja'));
+  $precoPago = (float)($row['preco'] ?? 0);
+  if ($precoPago <= 0) $precoPago = preco_assinatura($checkout, (int)($row['cadastros'] ?? 0));
   $upgradeTid = trim((string)($row['upgrade_tenant_id'] ?? ''));
   if ($upgradeTid !== '') {
     $now = gmdate('c');
@@ -1248,7 +1268,7 @@ function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): arra
     $pdo->prepare('UPDATE tenants SET plano=?, pagamento=?, contratado_em=?, valido_ate=?, status=? WHERE id=?')
       ->execute([$produto, $pagamento, $now, data_mais_um_ano($now), 'ativa', $upgradeTid]);
     $pdo->prepare('UPDATE signups SET status=?, mp_payment_id=?, tenant_id=?, pago_em=?, preco=? WHERE id=?')
-      ->execute(['pago', $paymentId, $upgradeTid, $now, preco_assinatura($checkout), $signupId]);
+      ->execute(['pago', $paymentId, $upgradeTid, $now, $precoPago, $signupId]);
     registrar_atividade($pdo, $upgradeTid, ['id' => '', 'username' => '', 'nome' => (string)$row['responsavel'], 'papel' => 'sede'], 'migrou plano', $produto);
     return [
       'jaPago' => false,
@@ -1276,7 +1296,7 @@ function ativar_signup_pago(PDO $pdo, string $signupId, string $paymentId): arra
       $criado['igreja']['id'],
       $criado['login']['username'],
       gmdate('c'),
-      preco_assinatura($checkout),
+      $precoPago,
       $signupId,
     ]);
   return $criado;
@@ -1293,11 +1313,13 @@ function processar_pagamento_mp(PDO $pdo, string $paymentId): bool {
   if ($ref === '') $ref = (string)(($pay['metadata']['signup_id'] ?? ''));
   if ($ref === '') return false;
   $amount = (float)($pay['transaction_amount'] ?? 0);
-  $stPlano = $pdo->prepare('SELECT plano FROM signups WHERE id = ?');
+  $stPlano = $pdo->prepare('SELECT plano, preco, cadastros FROM signups WHERE id = ?');
   $stPlano->execute([$ref]);
   $rowPlano = $stPlano->fetch();
   $planoId = plano_id((string)($rowPlano['plano'] ?? ''));
-  if ($amount + 0.009 < preco_assinatura($planoId)) return false;
+  $esperado = (float)($rowPlano['preco'] ?? 0);
+  if ($esperado <= 0) $esperado = preco_assinatura($planoId, (int)($rowPlano['cadastros'] ?? 0));
+  if ($amount + 0.009 < $esperado) return false;
   ativar_signup_pago($pdo, $ref, $paymentId);
   return true;
 }

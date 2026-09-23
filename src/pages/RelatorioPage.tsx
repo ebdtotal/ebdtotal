@@ -216,7 +216,7 @@ export function RelatorioPage() {
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Escolas</h2>
+          <h2 className="text-lg font-semibold">Congregações</h2>
           <div className="flex items-center gap-2">
             <PrimaryButton onClick={exportar}>
               <Download size={16} /> Excel

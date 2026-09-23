@@ -118,7 +118,7 @@ export function TurmasPage() {
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Turmas</h1>
           <p className="text-sm text-muted">
@@ -128,19 +128,64 @@ export function TurmasPage() {
           </p>
         </div>
         {podeCadastrar && (podeVerTudo || escolasVisiveis.length > 0) ? (
-          <PrimaryButton
-            aria-label="Nova turma"
-            onClick={() =>
-              setEditing({
-                id: uid('t'),
-                nome: '',
-                escolaId: escolasVisiveis[0]?.id ?? '',
-                faixaEtaria: 'Adultos',
+          <ImportacaoExcel
+            compact
+            arquivoModelo="modelo-turmas-ebd"
+            colunas={['Nome', 'Congregação', 'Faixa etária']}
+            exemplo={{
+              Nome: 'Ex.: Primários A',
+              Congregação: escolasVisiveis[0]?.nome ?? 'Nome da igreja',
+              'Faixa etária': 'Primários',
+            }}
+            onImportar={async (file) => {
+              const rows = await lerPlanilha(file)
+              const novas: TurmaCadastro[] = []
+              const erros: string[] = []
+              rows.forEach((row, i) => {
+                const linha = i + 2
+                const nome = celula(row, 'nome', 'turma')
+                if (!nome || /^ex\.?:/i.test(nome)) return
+                const congregacao = celula(row, 'congregacao', 'igreja', 'escola')
+                const escola =
+                  escolasVisiveis.find((e) => matches(e.nome, congregacao)) ??
+                  (congregacao ? undefined : escolasVisiveis[0])
+                if (!escola) {
+                  erros.push(`Linha ${linha}: congregação "${congregacao || '(vazia)'}" não encontrada`)
+                  return
+                }
+                const ja = (state.turmas ?? []).some(
+                  (t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase(),
+                ) || novas.some((t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase())
+                if (ja) {
+                  erros.push(`Linha ${linha}: turma "${nome}" já existe nesta congregação`)
+                  return
+                }
+                novas.push({
+                  id: uid('t'),
+                  nome,
+                  escolaId: escola.id,
+                  faixaEtaria: casarOpcao(celula(row, 'faixaetaria', 'faixa'), FAIXAS_ETARIAS, 'Adultos'),
+                })
               })
-            }
+              importarTurmas(novas)
+              return { ok: novas.length, erros }
+            }}
           >
-            <Plus size={16} />
-          </PrimaryButton>
+            <PrimaryButton
+              aria-label="Nova turma"
+              className="shrink-0 whitespace-nowrap !h-9 !min-h-0 !gap-1 !px-2 !py-0 !text-[11px]"
+              onClick={() =>
+                setEditing({
+                  id: uid('t'),
+                  nome: '',
+                  escolaId: escolasVisiveis[0]?.id ?? '',
+                  faixaEtaria: 'Adultos',
+                })
+              }
+            >
+              <Plus size={14} /> Adicionar
+            </PrimaryButton>
+          </ImportacaoExcel>
         ) : null}
       </div>
 
@@ -261,51 +306,6 @@ export function TurmasPage() {
         </div>
       ) : null}
 
-      {podeCadastrar ? (
-        <ImportacaoExcel
-          arquivoModelo="modelo-turmas-ebd"
-          colunas={['Nome', 'Congregação', 'Faixa etária']}
-          exemplo={{
-            Nome: 'Ex.: Primários A',
-            Congregação: escolasVisiveis[0]?.nome ?? 'Nome da igreja',
-            'Faixa etária': 'Primários',
-          }}
-          onImportar={async (file) => {
-            const rows = await lerPlanilha(file)
-            const novas: TurmaCadastro[] = []
-            const erros: string[] = []
-            rows.forEach((row, i) => {
-              const linha = i + 2
-              const nome = celula(row, 'nome', 'turma')
-              if (!nome || /^ex\.?:/i.test(nome)) return
-              const congregacao = celula(row, 'congregacao', 'igreja', 'escola')
-              const escola =
-                escolasVisiveis.find((e) => matches(e.nome, congregacao)) ??
-                (congregacao ? undefined : escolasVisiveis[0])
-              if (!escola) {
-                erros.push(`Linha ${linha}: congregação "${congregacao || '(vazia)'}" não encontrada`)
-                return
-              }
-              const ja = (state.turmas ?? []).some(
-                (t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase(),
-              ) || novas.some((t) => t.escolaId === escola.id && t.nome.toLowerCase() === nome.toLowerCase())
-              if (ja) {
-                erros.push(`Linha ${linha}: turma "${nome}" já existe nesta congregação`)
-                return
-              }
-              novas.push({
-                id: uid('t'),
-                nome,
-                escolaId: escola.id,
-                faixaEtaria: casarOpcao(celula(row, 'faixaetaria', 'faixa'), FAIXAS_ETARIAS, 'Adultos'),
-              })
-            })
-            importarTurmas(novas)
-            return { ok: novas.length, erros }
-          }}
-        />
-      ) : null}
-
       <section className="rounded-xl bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-ink">Cadastro das classes</h2>
         {turmas.length === 0 ? (
@@ -315,7 +315,7 @@ export function TurmasPage() {
             <table className="data w-full min-w-[640px] text-left">
               <thead>
                 <tr>
-                  {['Turma', 'Escola', 'Faixa etária', 'Setor', ''].map((h) => (
+                  {['Turma', 'Congregação', 'Faixa etária', 'Setor', ''].map((h) => (
                     <th key={h || 'a'} className="px-3 py-3">{h}</th>
                   ))}
                 </tr>
@@ -407,7 +407,7 @@ export function TurmasPage() {
             <Field label="Nome da turma">
               <input className={inputClass} required value={editing.nome} onChange={(e) => setEditing({ ...editing, nome: e.target.value })} />
             </Field>
-            <Field label="Escola">
+            <Field label="Congregação">
               <select className={inputClass} value={editing.escolaId} onChange={(e) => setEditing({ ...editing, escolaId: e.target.value })}>
                 {escolasVisiveis.map((esc) => (
                   <option key={esc.id} value={esc.id}>{esc.nome}</option>
