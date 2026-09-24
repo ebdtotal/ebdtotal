@@ -287,8 +287,8 @@ export function ChamadaPage() {
 
   function toggle(pessoaId: string, campo: keyof Omit<ChamadaAluno, 'pessoaId'>) {
     if (bloqueado) return
-    let biblias = bibliasClasse
-    let revistas = revistasClasse
+    let biblias = modoProfessores ? bibliasProf : bibliasClasse
+    let revistas = modoProfessores ? revistasProf : revistasClasse
     const next = alunos.map((a) => {
       if (a.pessoaId !== pessoaId) return a
       const row = { ...a, [campo]: !a[campo] }
@@ -307,13 +307,14 @@ export function ChamadaPage() {
       return row
     })
     setAlunos(next)
-    if (!modoProfessores) {
+    if (modoProfessores) {
+      setBibliasProf(biblias)
+      setRevistasProf(revistas)
+    } else {
       setBibliasClasse(biblias)
       setRevistasClasse(revistas)
-      autoSalvar(next, { ...extrasAgora(), biblias, revistas })
-      return
     }
-    autoSalvar(next)
+    autoSalvar(next, { ...extrasAgora(), biblias, revistas })
   }
 
   function setPontosParticipacao(pessoaId: string, pontos: number) {
@@ -517,43 +518,63 @@ export function ChamadaPage() {
           </p>
         ) : null}
 
-        <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="font-semibold text-ink">Chamada de professores</h2>
-          <p className="mb-3 text-xs text-muted">
-            Clique sobre os nomes dos professores para confirmar a presença. Após enviado, os relatórios poderão ser
-            alterados pelos administradores.
-          </p>
-          <ul className="space-y-2">
+        <section className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div className="px-4 pb-2 pt-4">
+            <h2 className="font-semibold text-ink">Chamada de professores</h2>
+            <p className="text-xs text-muted">Toque no nome para confirmar a presença. Ícones: oferta, revista e bíblia.</p>
+          </div>
+          <ul>
             {pessoas.map((p) => {
               const a = visiveis.find((row) => row.pessoaId === p.id) ?? chamadaVazia(p.id)
               return (
-                <li key={p.id}>
+                <li
+                  key={p.id}
+                  className={`flex items-center gap-1 border-b border-line last:border-0 ${
+                    a.presente ? 'border-l-4 border-l-emerald-500 bg-emerald-50/50' : 'border-l-4 border-l-transparent'
+                  }`}
+                >
                   <button
                     type="button"
                     disabled={bloqueado}
                     onClick={() => toggle(p.id, 'presente')}
-                    className={`flex w-full items-center justify-between rounded-2xl border-l-4 px-4 py-3.5 text-left ${
-                      a.presente
-                        ? 'border-l-emerald-500 bg-emerald-50/70'
-                        : 'border-l-transparent bg-page'
-                    } disabled:opacity-60`}
+                    className="min-w-0 flex-1 py-3 pl-3 text-left"
                   >
-                    <span className="min-w-0 flex-1 break-words pr-3 font-medium leading-snug text-ink">{p.nome}</span>
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                        a.presente ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-white'
-                      }`}
-                    >
-                      <Check size={15} strokeWidth={3} />
-                    </span>
+                    <span className="break-words font-medium leading-snug text-ink">{p.nome}</span>
                   </button>
+                  <div className="flex shrink-0 items-center gap-1 pr-2">
+                    <IconBtn
+                      label="Oferta"
+                      on={a.ofertou}
+                      disabled={bloqueado || !a.presente}
+                      onClick={() => toggle(p.id, 'ofertou')}
+                      activeClass="text-emerald-600"
+                    >
+                      <Coins size={20} />
+                    </IconBtn>
+                    <IconBtn
+                      label="Revista"
+                      on={a.revista}
+                      disabled={bloqueado || !a.presente}
+                      onClick={() => toggle(p.id, 'revista')}
+                      activeClass="text-amber-700"
+                    >
+                      <NotebookPen size={20} />
+                    </IconBtn>
+                    <IconBtn
+                      label="Bíblia"
+                      on={a.biblia}
+                      disabled={bloqueado || !a.presente}
+                      onClick={() => toggle(p.id, 'biblia')}
+                      activeClass="text-blue-700"
+                    >
+                      <BookOpen size={20} />
+                    </IconBtn>
+                  </div>
                 </li>
               )
             })}
             {pessoas.length === 0 ? (
-              <li className="rounded-2xl bg-page px-4 py-8 text-center text-sm text-muted">
-                Nenhum professor cadastrado nesta congregação.
-              </li>
+              <li className="px-4 py-8 text-center text-sm text-muted">Nenhum professor cadastrado nesta congregação.</li>
             ) : null}
           </ul>
         </section>
