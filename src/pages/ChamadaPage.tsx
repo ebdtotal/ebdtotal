@@ -24,7 +24,7 @@ import { formatDateBR, lastSunday, moneyBR, parseMoneyBR, toISODate, uid } from 
 
 const CHAMADA_PROFESSORES = '__professores__'
 const acoesChamadaClass =
-  'fixed inset-x-0 z-20 flex flex-col gap-2 border-t-2 border-gold bg-navy px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none'
+  'fixed inset-x-0 z-40 flex flex-col gap-2 border-t-2 border-gold bg-navy px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none'
 
 export function ChamadaPage() {
   const { state, escolasVisiveis, saveRelatorio, usuario, podeVerTudo, ehProfessor, bloqueiaChamadaEFinanceiro: planoTravado } = useStore()
@@ -504,6 +504,11 @@ export function ChamadaPage() {
         </div>
 
         {avisoConsulta}
+        {planoTravado ? null : classeSalva && !finalizado ? (
+          <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            Relatório dos professores enviado.
+          </p>
+        ) : null}
         {planoTravado ? null : finalizado && !editando ? (
           <div className="mb-3 flex flex-col gap-2 rounded-xl bg-emerald-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-emerald-800">Chamada dos professores finalizada. Você pode corrigir.</p>
@@ -644,7 +649,13 @@ export function ChamadaPage() {
         ) : (
           <div className={acoesChamadaClass}>
             <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>
-              Enviar relatório
+              {classeSalva ? (
+                <>
+                  <Check size={16} /> Relatório enviado
+                </>
+              ) : (
+                'Enviar relatório'
+              )}
             </PrimaryButton>
           </div>
         )}

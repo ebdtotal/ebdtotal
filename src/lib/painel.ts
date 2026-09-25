@@ -27,23 +27,29 @@ export function metaDaEscola(state: AppState, escolaId: string): MetaEscola {
 
 function presencaDoRelatorio(rel: AppState['relatorios'][number], alunos: AppState['pessoas']) {
   const daEscola = alunos.filter((p) => p.escolaId === rel.escolaId)
-  const ids = new Set(daEscola.map((p) => p.id))
   const porId = new Map(daEscola.map((p) => [p.id, p]))
-  const rows = (rel.alunos ?? []).filter((a) => ids.has(a.pessoaId))
-  const salvas = (rel.classes ?? []).filter((c) => c.salva)
-  if (salvas.length) {
-    const nomes = new Set(salvas.map((c) => c.turma))
-    const mat = daEscola.filter((p) => nomes.has(p.turma)).length
-    const pre = rows.filter((a) => nomes.has(porId.get(a.pessoaId)?.turma ?? '') && a.presente).length
-    const visitantes = salvas.reduce((s, c) => s + (c.visitantes || 0), 0)
-    return { mat, pre, visitantes, conta: mat > 0 }
+  const rows = (rel.alunos ?? []).filter((a) => porId.has(a.pessoaId))
+  const classes = rel.classes ?? []
+  const visitantes = classes.length
+    ? classes.reduce((s, c) => s + (c.visitantes || 0), 0)
+    : rel.visitantes || 0
+  const presentes = rows.filter((a) => a.presente)
+  const salvas = classes.filter((c) => c.salva)
+  const turmas = new Set<string>()
+  for (const c of classes) {
+    if (c.salva || (c.visitantes || 0) > 0) turmas.add(c.turma)
   }
-  if (rel.matriculados > 0) {
-    return { mat: rel.matriculados, pre: rel.presentes, visitantes: rel.visitantes, conta: true }
+  for (const a of presentes) {
+    const turma = porId.get(a.pessoaId)?.turma ?? ''
+    if (turma) turmas.add(turma)
   }
-  const pre = rows.filter((a) => a.presente).length
-  if (pre > 0) {
-    return { mat: daEscola.length || rows.length, pre, visitantes: rel.visitantes, conta: true }
+  const houveChamada = presentes.length > 0 || salvas.length > 0 || visitantes > 0
+  if (houveChamada) {
+    const mat = turmas.size ? daEscola.filter((p) => turmas.has(p.turma)).length : daEscola.length || rows.length
+    return { mat: mat || presentes.length, pre: presentes.length, visitantes, conta: true }
+  }
+  if (!rows.length && rel.matriculados > 0) {
+    return { mat: rel.matriculados, pre: rel.presentes, visitantes: rel.visitantes || 0, conta: true }
   }
   return { mat: 0, pre: 0, visitantes: 0, conta: false }
 }

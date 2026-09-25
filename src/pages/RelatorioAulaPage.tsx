@@ -278,8 +278,7 @@ export function RelatorioAulaPage() {
             <button
               type="button"
               onClick={() => setTela('final')}
-              className="w-full rounded-full py-3 text-sm font-semibold tracking-wide text-white"
-              style={{ background: ROXO }}
+              className="w-full rounded-full bg-navy py-3 text-sm font-semibold tracking-wide text-white"
             >
               VER RESUMO
             </button>
