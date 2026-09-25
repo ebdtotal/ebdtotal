@@ -26,7 +26,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { mobileDoPerfil, navDoPerfil, NAV_MASTER, perfilDe, ROTULO_PERFIL } from '../lib/perfis'
 import { avisoRenovacaoPlano, diasParaVencer, planoVencido, recursoDaRota, rotuloProduto } from '../lib/planos'
@@ -35,7 +35,6 @@ import { alertasMudancaFaixa } from '../lib/faixa'
 import { useStore } from '../lib/store'
 import { whatsappUrl } from '../lib/utils'
 import { Logo } from './Logo'
-import { SinoNotificacoes } from './SinoNotificacoes'
 import { TemaToggle } from './TemaToggle'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -74,6 +73,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { usuario, logout, state, pessoasVisiveis, escolasVisiveis, podeVerTudo, temRecurso, igreja } = useStore()
   const [open, setOpen] = useState(false)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+  function aoTopo() {
+    mainRef.current?.scrollTo(0, 0)
+  }
+  useEffect(() => {
+    aoTopo()
+  }, [location.pathname, location.search])
   const perfil = perfilDe(usuario?.papel)
   const base = navDoPerfil(perfil)
     .filter((i) => i.to !== '/configuracoes' || podeVerTudo)
@@ -118,6 +124,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={aoTopo}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                     isActive ? 'bg-white/12 text-white' : 'text-white/70 hover:bg-white/8 hover:text-white'
@@ -167,7 +174,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    onClick={() => setOpen(false)}
+                    onClick={() => {
+                      setOpen(false)
+                      aoTopo()
+                    }}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${isActive ? 'bg-white/12' : 'text-white/70'}`
                     }
@@ -216,7 +226,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
-            <SinoNotificacoes />
             <TemaToggle compact />
             <NavLink to="/conta" className="flex min-w-0 items-center gap-1.5 text-xs text-ink hover:text-navy">
               <UserRound size={16} className="shrink-0 text-muted" />
@@ -224,7 +233,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </NavLink>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8 lg:pb-10">
+        <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8 lg:pb-10">
           {usuario?.papel !== 'admin' && igreja && planoVencido(igreja.validoAte) ? (
             <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               O plano {rotuloProduto(igreja.plano)} venceu. Chamada e lançamentos financeiros estão bloqueados.
@@ -268,6 +277,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={aoTopo}
               className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 px-0.5 pt-1.5 text-[9px] leading-tight ${
                 active ? 'font-bold text-navy' : 'font-semibold text-navy/70'
               }`}

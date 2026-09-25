@@ -1,9 +1,8 @@
 import { Award, BookOpen, CalendarRange, ClipboardCheck, Home, KeyRound, LogOut, Megaphone, Menu } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Logo } from './Logo'
-import { SinoNotificacoes } from './SinoNotificacoes'
 import { TemaToggle } from './TemaToggle'
 
 const NAV = [
@@ -21,6 +20,14 @@ const MOBILE = ['/portal', '/licao', '/avisos', '/portal/avaliacao']
 export function PortalLayout({ children }: { children: ReactNode }) {
   const { usuario, logout } = useStore()
   const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+  function aoTopo() {
+    mainRef.current?.scrollTo(0, 0)
+  }
+  useEffect(() => {
+    aoTopo()
+  }, [location.pathname, location.search])
 
   return (
     <div className="app-navy flex h-full min-h-[var(--app-min-h,100dvh)] flex-col pt-[max(env(safe-area-inset-top),var(--safe-top,0px))]">
@@ -35,6 +42,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
               key={item.to}
               to={item.to}
               end={item.end}
+              onClick={aoTopo}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${isActive ? 'bg-white/12' : 'text-white/70'}`
               }
@@ -57,7 +65,15 @@ export function PortalLayout({ children }: { children: ReactNode }) {
               <Logo variant="full" className="mx-auto h-14 w-auto" />
             </div>
             {NAV.map((item) => (
-              <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)} className="px-5 py-2 text-sm">
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => {
+                  setOpen(false)
+                  aoTopo()
+                }}
+                className="px-5 py-2 text-sm"
+              >
                 {item.label}
               </NavLink>
             ))}
@@ -87,14 +103,13 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             <div className="text-sm font-semibold text-navy">EBD Total</div>
           </div>
           <div className="flex min-w-0 items-center gap-2">
-            <SinoNotificacoes />
             <TemaToggle compact />
             <NavLink to="/conta" className="max-w-[110px] truncate text-xs font-medium text-navy">
               {usuario?.nome}
             </NavLink>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8">{children}</main>
+        <main ref={mainRef} className="flex-1 overflow-y-auto px-4 py-5 pb-28 lg:px-8">{children}</main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-white/95 pb-[max(env(safe-area-inset-bottom),var(--safe-bottom,0px))] backdrop-blur-md lg:hidden">
@@ -103,6 +118,7 @@ export function PortalLayout({ children }: { children: ReactNode }) {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={aoTopo}
             className={({ isActive }) =>
               `flex min-h-12 flex-col items-center justify-center gap-0.5 pt-1.5 text-[9px] ${isActive ? 'font-bold text-navy' : 'font-semibold text-navy/70'}`
             }

@@ -25,16 +25,47 @@ export function metaDaEscola(state: AppState, escolaId: string): MetaEscola {
   )
 }
 
+function presencaDoRelatorio(rel: AppState['relatorios'][number], alunos: AppState['pessoas']) {
+  const daEscola = alunos.filter((p) => p.escolaId === rel.escolaId)
+  const ids = new Set(daEscola.map((p) => p.id))
+  const porId = new Map(daEscola.map((p) => [p.id, p]))
+  const rows = (rel.alunos ?? []).filter((a) => ids.has(a.pessoaId))
+  const salvas = (rel.classes ?? []).filter((c) => c.salva)
+  if (salvas.length) {
+    const nomes = new Set(salvas.map((c) => c.turma))
+    const mat = daEscola.filter((p) => nomes.has(p.turma)).length
+    const pre = rows.filter((a) => nomes.has(porId.get(a.pessoaId)?.turma ?? '') && a.presente).length
+    const visitantes = salvas.reduce((s, c) => s + (c.visitantes || 0), 0)
+    return { mat, pre, visitantes, conta: mat > 0 }
+  }
+  if (rel.matriculados > 0) {
+    return { mat: rel.matriculados, pre: rel.presentes, visitantes: rel.visitantes, conta: true }
+  }
+  const pre = rows.filter((a) => a.presente).length
+  if (pre > 0) {
+    return { mat: daEscola.length || rows.length, pre, visitantes: rel.visitantes, conta: true }
+  }
+  return { mat: 0, pre: 0, visitantes: 0, conta: false }
+}
+
 export function painelEbd(state: AppState, escolaIds: Set<string>): PainelDados {
   const pessoas = state.pessoas.filter((p) => escolaIds.has(p.escolaId) && p.status === 'Ativo')
   const alunos = pessoas.filter((p) => p.tipo === 'Aluno')
   const professores = pessoas.filter((p) => p.tipo === 'Professor')
   const rels = state.relatorios.filter((r) => escolaIds.has(r.escolaId))
-  const ultimaData = [...new Set(rels.map((r) => r.data))].sort().at(-1)
-  const ultima = rels.filter((r) => r.data === ultimaData)
-  const mat = ultima.reduce((a, r) => a + r.matriculados, 0)
-  const pre = ultima.reduce((a, r) => a + r.presentes, 0)
-  const visitantes = ultima.reduce((a, r) => a + r.visitantes, 0)
+  const datas = [...new Set(rels.map((r) => r.data))].sort()
+  let mat = 0
+  let pre = 0
+  let visitantes = 0
+  for (let i = datas.length - 1; i >= 0; i--) {
+    const dia = rels.filter((r) => r.data === datas[i])
+    const partes = dia.map((r) => presencaDoRelatorio(r, alunos)).filter((p) => p.conta)
+    if (!partes.length) continue
+    mat = partes.reduce((s, p) => s + p.mat, 0)
+    pre = partes.reduce((s, p) => s + p.pre, 0)
+    visitantes = partes.reduce((s, p) => s + p.visitantes, 0)
+    break
+  }
 
   const fichas = alunos.map((a) => fichaAluno(state, a.id)).filter(Boolean)
   const faltas3 = fichas
@@ -61,7 +92,6 @@ export function painelEbd(state: AppState, escolaIds: Set<string>): PainelDados 
     }
   }
 
-  const datas = [...new Set(rels.map((r) => r.data))].sort()
   const recentes = new Set(datas.slice(-2))
   const novos = alunos.filter((a) => {
     const f = fichas.find((x) => x!.pessoa.id === a.id)

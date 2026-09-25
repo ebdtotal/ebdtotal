@@ -51,8 +51,7 @@ const NAV: Record<PerfilApp, NavItem[]> = {
     { to: '/metas', label: 'Metas' },
     { to: '/alertas', label: 'Alertas' },
     { to: '/avisos', label: 'Avisos' },
-    { to: '/relatorio', label: 'Relatório' },
-    { to: '/aula', label: 'Por aula' },
+    { to: '/aula', label: 'Relatório' },
     { to: '/resumos', label: 'Resumos' },
     { to: '/cadastros', label: 'Cadastros' },
     { to: '/turmas', label: 'Turmas' },
@@ -71,14 +70,13 @@ const NAV: Record<PerfilApp, NavItem[]> = {
   ],
   secretario: [
     { to: '/inicio', label: 'Início' },
-    { to: '/relatorio', label: 'Relatório' },
     { to: '/chamada', label: 'Chamada' },
     { to: '/cadastros', label: 'Cadastros' },
     { to: '/turmas', label: 'Turmas' },
     { to: '/setores', label: 'Setores' },
     { to: '/alertas', label: 'Alertas' },
     { to: '/avisos', label: 'Avisos' },
-    { to: '/aula', label: 'Por aula' },
+    { to: '/aula', label: 'Relatório' },
     { to: '/resumos', label: 'Resumos' },
     { to: '/calendario', label: 'Calendário' },
     { to: '/licao', label: 'Lição' },
@@ -100,8 +98,8 @@ const NAV: Record<PerfilApp, NavItem[]> = {
 
 const MOBILE: Record<PerfilApp, string[]> = {
   professor: ['/inicio', '/chamada', '/licao', '/avaliacao', '/alertas'],
-  superintendente: ['/inicio', '/chamada', '/painel', '/relatorio', '/alertas'],
-  secretario: ['/inicio', '/relatorio', '/chamada', '/cadastros', '/alertas'],
+  superintendente: ['/inicio', '/chamada', '/painel', '/alertas', '/aula'],
+  secretario: ['/inicio', '/chamada', '/cadastros', '/alertas', '/aula'],
   aluno: ['/portal', '/licao', '/avisos', '/portal/avaliacao'],
 }
 
@@ -172,7 +170,6 @@ export const ATALHOS: Record<Exclude<PerfilApp, 'aluno'>, { to: string; search?:
     { to: '/financeiro', label: 'Financeiro', texto: 'Oferta, dízimo e despesa' },
   ],
   secretario: [
-    { to: '/relatorio', label: 'Relatório diário', texto: 'Lançar o domingo' },
     { to: '/chamada', label: 'Chamada', texto: 'Presença da congregação' },
     { to: '/cadastros', label: 'Cadastros', texto: 'Matricular e atualizar' },
     { to: '/financeiro', label: 'Ofertas', texto: 'Oferta, dízimo e despesa' },
