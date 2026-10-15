@@ -23,6 +23,25 @@ export function formatDateBR(iso: string): string {
   return `${pad2(Number(d))}/${pad2(Number(m))}/${y}`
 }
 
+/** Máscara (xx) xxxxx-xxxx. Se vier com DDI 55, ele é removido na exibição. */
+export function maskWhatsApp(raw: string): string {
+  let d = raw.replace(/\D/g, '')
+  if (d.startsWith('55') && d.length > 11) d = d.slice(2)
+  d = d.slice(0, 11)
+  if (!d) return ''
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
+export function maskCpf(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
 export function maskDateBR(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
   if (digits.length <= 2) return digits
@@ -110,6 +129,40 @@ export function matches(haystack: string, needle: string): boolean {
   return normalize(haystack).includes(normalize(needle))
 }
 
+export function cpfChave(cpf: string | undefined): string {
+  const digitos = (cpf ?? '').replace(/\D/g, '')
+  return digitos.length === 11 ? digitos : ''
+}
+
+export function nomeNascChave(nome: string, dataNascimento: string): string {
+  const nomeN = normalize(nome).replace(/\s+/g, ' ')
+  const data = parseDateBR(dataNascimento) ?? ''
+  if (!nomeN || !data) return ''
+  return `${nomeN}|${data}`
+}
+
+export type CadastroIdentidade = { id: string; nome: string; dataNascimento: string; cpf?: string }
+
+export function duplicataCadastro<T extends CadastroIdentidade>(
+  lista: T[],
+  pessoa: CadastroIdentidade,
+): { pessoa: T; motivo: 'cpf' | 'nome' } | null {
+  const cpf = cpfChave(pessoa.cpf)
+  if (cpf) {
+    const porCpf = lista.find((item) => item.id !== pessoa.id && cpfChave(item.cpf) === cpf)
+    if (porCpf) return { pessoa: porCpf, motivo: 'cpf' }
+  }
+  const chave = nomeNascChave(pessoa.nome, pessoa.dataNascimento)
+  if (!chave) return null
+  const porNome = lista.find((item) => item.id !== pessoa.id && nomeNascChave(item.nome, item.dataNascimento) === chave)
+  return porNome ? { pessoa: porNome, motivo: 'nome' } : null
+}
+
+export function textoDuplicata(nome: string, motivo: 'cpf' | 'nome'): string {
+  if (motivo === 'cpf') return `Já existe um cadastro com este CPF: ${nome}.`
+  return `Já existe um cadastro com este nome e data de nascimento: ${nome}.`
+}
+
 export function sortBy<T>(list: T[], key: keyof T, dir: 'asc' | 'desc'): T[] {
   const copy = [...list]
   copy.sort((a, b) => {
@@ -194,6 +247,7 @@ export function senhaGerada(tamanho = 10): string {
 }
 
 export function whatsappUrl(numero: string, texto: string): string {
-  const n = numero.replace(/\D/g, '')
+  let n = numero.replace(/\D/g, '')
+  if (n.length === 10 || n.length === 11) n = `55${n}`
   return `https://wa.me/${n}?text=${encodeURIComponent(texto)}`
 }

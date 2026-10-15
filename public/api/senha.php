@@ -53,4 +53,16 @@ if ($acao === 'alterar') {
   json_ok(['ok' => true]);
 }
 
+if ($acao === 'conferir') {
+  $sess = auth();
+  $senha = (string)($in['senha'] ?? '');
+  $st = $pdo->prepare('SELECT senha_hash FROM users WHERE id = ?');
+  $st->execute([$sess['user_id']]);
+  $user = $st->fetch();
+  if (!$user || !password_verify($senha, (string)$user['senha_hash'])) {
+    json_err('Senha incorreta.');
+  }
+  json_ok(['ok' => true]);
+}
+
 json_err('Ação inválida.');

@@ -52,7 +52,7 @@ import type {
   TurmaCadastro,
   Usuario,
 } from './types'
-import { formatDateBR, senhaGerada, toISODate, uid, usernameFromNome, whatsappSuporte } from './utils'
+import { formatDateBR, senhaGerada, toISODate, uid, usernameFromNome, whatsappSuporte, duplicataCadastro, textoDuplicata } from './utils'
 
 const STORAGE_KEY = 'portal-ebd-v7'
 const IGREJA_KEY = 'ebd-igreja'
@@ -656,6 +656,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           erro = `Limite de ${limitePessoas} cadastros de pessoas por igreja.`
           return prev
         }
+        const duplicata = duplicataCadastro(prev.pessoas, pessoa)
+        if (duplicata) {
+          erro = textoDuplicata(duplicata.pessoa.nome, duplicata.motivo)
+          return prev
+        }
         const atual = prev.pessoas.find((p) => p.id === pessoa.id)
         if (atual?.escolaId) escolasIds = [...new Set([pessoa.escolaId, atual.escolaId])]
         return aplicarPessoaNoEstado(prev, pessoa, acesso)
@@ -684,9 +689,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       (prev) => {
         const vagas = Math.max(0, limitePessoas - prev.pessoas.length)
         const jaTem = new Set(prev.pessoas.map((p) => p.id))
-        const novos = itens.filter((item) => !jaTem.has(item.pessoa.id)).slice(0, vagas)
-        const edits = itens.filter((item) => jaTem.has(item.pessoa.id))
-        return [...edits, ...novos].reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev)
+        const aceitos: { pessoa: Pessoa; acesso?: AcessoApp | null }[] = []
+        const base = [...prev.pessoas]
+        for (const item of itens) {
+          if (duplicataCadastro(base, item.pessoa)) continue
+          if (!jaTem.has(item.pessoa.id) && aceitos.filter((a) => !jaTem.has(a.pessoa.id)).length >= vagas) continue
+          aceitos.push(item)
+          base.push(item.pessoa)
+        }
+        return aceitos.reduce((acc, item) => aplicarPessoaNoEstado(acc, item.pessoa, item.acesso), prev)
       },
       true,
       (next) => ({

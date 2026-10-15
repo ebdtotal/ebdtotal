@@ -14,7 +14,8 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AulaDateSelect } from '../components/AulaDateSelect'
-import { GhostButton, PrimaryButton, inputClass, roundBtnClass, stepBtnClass } from '../components/ui'
+import { Field, GhostButton, Modal, PrimaryButton, inputClass, roundBtnClass, stepBtnClass } from '../components/ui'
+import { apiConferirSenha, apiToken } from '../lib/api'
 import { EVENTO_SYNC } from '../lib/native'
 import { perfilDe } from '../lib/perfis'
 import { useStore } from '../lib/store'
@@ -51,6 +52,17 @@ export function ChamadaPage() {
   const [bibliasProf, setBibliasProf] = useState(0)
   const [revistasProf, setRevistasProf] = useState(0)
   const [ofertaProf, setOfertaProf] = useState(0)
+  const hoje = toISODate(new Date())
+  const [dataLiberada, setDataLiberada] = useState(hoje)
+  const [dataPendente, setDataPendente] = useState<string | null>(null)
+  const [pedirSenha, setPedirSenha] = useState(false)
+  const [senhaDesfazer, setSenhaDesfazer] = useState('')
+  const [erroSenha, setErroSenha] = useState('')
+  const [conferindo, setConferindo] = useState(false)
+
+  useEffect(() => {
+    if (data !== hoje && data !== dataLiberada) setDataPendente(data)
+  }, [data, hoje, dataLiberada])
 
   useEffect(() => {
     window.dispatchEvent(new Event(EVENTO_SYNC))
@@ -174,10 +186,11 @@ export function ChamadaPage() {
 
   function mesclarClasses(
     extra: { visitantes: number; biblias: number; revistas: number; oferta: number; anotacao: string },
-    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean; desfazer?: boolean },
   ): ChamadaClasse[] {
     const prev = existente?.classes ?? []
     if (modoProfessores || !turma) return prev
+    if (opts?.desfazer) return prev.filter((c) => c.turma !== turma)
     const anterior = prev.find((c) => c.turma === turma)
     const atual: ChamadaClasse = {
       turma,
@@ -195,7 +208,7 @@ export function ChamadaPage() {
   function montar(
     lista: ChamadaAluno[],
     extra: { visitantes: number; biblias: number; revistas: number; oferta: number; anotacao: string },
-    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean; desfazer?: boolean },
   ): RelatorioDiario {
     const classes = mesclarClasses(extra, opts)
     const nomesTurmas = [...new Set(daEscola.filter((p) => p.tipo === 'Aluno' && p.turma).map((p) => p.turma))]
@@ -207,7 +220,7 @@ export function ChamadaPage() {
     const considerados = todos.filter((a) => idsSalvos.has(a.pessoaId))
     const temSalva = classes.some((c) => c.salva)
     const pre = considerados.filter((a) => a.presente).length
-    const manterLegado = !temSalva && !opts?.salvarClasse && !opts?.finalizarClasse && !!existente
+    const manterLegado = !opts?.desfazer && !temSalva && !opts?.salvarClasse && !opts?.finalizarClasse && !!existente
     const diaFinalizado = nomesTurmas.length > 0 && nomesTurmas.every((nome) => salvas.has(nome))
     const anotacoes = classes.map((c) => c.anotacao?.trim()).filter(Boolean).join(' · ')
     return {
@@ -243,12 +256,16 @@ export function ChamadaPage() {
       ofertaProfessores: modoProfessores ? extra.oferta : (existente?.ofertaProfessores ?? ofertaProf),
       finalizado: diaFinalizado,
       professoresSalva: modoProfessores
-        ? !!(opts?.salvarClasse || opts?.finalizarClasse || existente?.professoresSalva)
+        ? opts?.desfazer
+          ? false
+          : !!(opts?.salvarClasse || opts?.finalizarClasse || existente?.professoresSalva)
         : !!existente?.professoresSalva,
       professoresFinalizada: modoProfessores
-        ? opts?.finalizarClasse
-          ? true
-          : !!existente?.professoresFinalizada
+        ? opts?.desfazer
+          ? false
+          : opts?.finalizarClasse
+            ? true
+            : !!existente?.professoresFinalizada
         : !!existente?.professoresFinalizada,
       classes,
       alunos: todos,
@@ -272,9 +289,9 @@ export function ChamadaPage() {
   function salvar(
     lista: ChamadaAluno[],
     extra = extrasAgora(),
-    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean },
+    opts?: { salvarClasse?: boolean; finalizarClasse?: boolean; desfazer?: boolean },
   ) {
-    if (planoTravado || (finalizado && !editando)) return
+    if (planoTravado || (finalizado && !editando && !opts?.desfazer)) return
     saveRelatorio(montar(lista, extra, opts), {
       turma: modoProfessores ? 'Professores' : turma || undefined,
     })
@@ -375,6 +392,147 @@ export function ChamadaPage() {
     autoSalvar(alunos, next)
   }
 
+  function escolherData(iso: string) {
+    if (iso === hoje || iso === dataLiberada) {
+      setDataPendente(null)
+      setData(iso)
+      return
+    }
+    setDataPendente(iso)
+  }
+
+  function aceitarData() {
+    if (!dataPendente) return
+    setDataLiberada(dataPendente)
+    setData(dataPendente)
+    setDataPendente(null)
+  }
+
+  function recusarData() {
+    setDataPendente(null)
+    if (data !== hoje) setData(hoje)
+  }
+
+  function desfazerChamada() {
+    const ids = new Set(pessoas.map((p) => p.id))
+    const lista = alunos.map((a) => (ids.has(a.pessoaId) ? chamadaVazia(a.pessoaId) : a))
+    setAlunos(lista)
+    setEditando(false)
+    if (modoProfessores) {
+      setBibliasProf(0)
+      setRevistasProf(0)
+      setOfertaProf(0)
+      salvar(lista, {
+        visitantes: existente?.visitantes ?? 0,
+        biblias: 0,
+        revistas: 0,
+        oferta: 0,
+        anotacao: existente?.anotacao ?? '',
+      }, { desfazer: true })
+      return
+    }
+    setVisitantes(0)
+    setBibliasClasse(0)
+    setRevistasClasse(0)
+    setOferta(0)
+    setAnotacao('')
+    salvar(lista, { visitantes: 0, biblias: 0, revistas: 0, oferta: 0, anotacao: '' }, { desfazer: true })
+  }
+
+  async function confirmarDesfazer() {
+    const senha = senhaDesfazer.trim()
+    if (!senha) {
+      setErroSenha('Informe a senha de acesso.')
+      return
+    }
+    setConferindo(true)
+    setErroSenha('')
+    try {
+      if (apiToken()) {
+        try {
+          await apiConferirSenha(senha)
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Senha incorreta.'
+          const localOk = !!usuario && !usuario.senha.startsWith('$2') && usuario.senha === senha
+          if (!localOk || !/conex/i.test(msg)) {
+            setErroSenha(localOk ? 'Senha incorreta.' : msg)
+            return
+          }
+        }
+      } else if (!usuario || usuario.senha.startsWith('$2') || usuario.senha !== senha) {
+        setErroSenha('Senha incorreta.')
+        return
+      }
+      desfazerChamada()
+      setPedirSenha(false)
+      setSenhaDesfazer('')
+    } finally {
+      setConferindo(false)
+    }
+  }
+
+  const btnDesfazer = planoTravado ? null : (
+    <GhostButton
+      className="w-full"
+      onClick={() => {
+        setSenhaDesfazer('')
+        setErroSenha('')
+        setPedirSenha(true)
+      }}
+    >
+      Desfazer chamada
+    </GhostButton>
+  )
+
+  const avisos = (
+    <>
+      <Modal open={!!dataPendente} title="Data diferente de hoje" onClose={recusarData}>
+        <p className="text-sm leading-6 text-ink">
+          A chamada selecionada é de <b>{dataPendente ? formatDateBR(dataPendente) : ''}</b>, e hoje é <b>{formatDateBR(hoje)}</b>.
+          Tem certeza que quer lançar nesta data?
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <GhostButton onClick={recusarData}>Cancelar</GhostButton>
+          <PrimaryButton onClick={aceitarData}>Tenho certeza</PrimaryButton>
+        </div>
+      </Modal>
+      <Modal
+        open={pedirSenha}
+        title="Desfazer chamada"
+        onClose={() => {
+          if (conferindo) return
+          setPedirSenha(false)
+        }}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            void confirmarDesfazer()
+          }}
+        >
+          <p className="mb-3 text-sm leading-6 text-ink">
+            A presença, a oferta e o relatório desta chamada voltam ao início, como se não tivessem sido lançados.
+            Confirme com a senha de acesso.
+          </p>
+          <Field label="Senha de acesso">
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="current-password"
+              value={senhaDesfazer}
+              onChange={(e) => setSenhaDesfazer(e.target.value)}
+            />
+          </Field>
+          {erroSenha ? <p className="mt-2 text-sm text-red-600">{erroSenha}</p> : null}
+          <div className="mt-4 flex justify-end gap-2">
+            <GhostButton type="button" onClick={() => setPedirSenha(false)} disabled={conferindo}>Cancelar</GhostButton>
+            <PrimaryButton type="submit" disabled={conferindo}>Desfazer</PrimaryButton>
+          </div>
+        </form>
+      </Modal>
+    </>
+  )
+
   if (ehProfessor && !turma) {
     return (
       <div>
@@ -394,10 +552,11 @@ export function ChamadaPage() {
             : 'Presença das turmas da congregação. Cada classe é salva à parte.'}
         </p>
         {avisoConsulta}
+        {avisos}
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium">Data da aula</span>
-            <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
+            <AulaDateSelect value={data} onChange={escolherData} eventos={state.eventos} licoes={state.licoes} />
           </label>
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium">Congregação</span>
@@ -500,10 +659,11 @@ export function ChamadaPage() {
         </div>
         <div className="mb-4">
           <span className="mb-1 block text-[13px] font-medium">Data da aula</span>
-          <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
+          <AulaDateSelect value={data} onChange={escolherData} eventos={state.eventos} licoes={state.licoes} />
         </div>
 
         {avisoConsulta}
+        {avisos}
         {planoTravado ? null : classeSalva && !finalizado ? (
           <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             Relatório dos professores enviado.
@@ -534,8 +694,8 @@ export function ChamadaPage() {
               return (
                 <li
                   key={p.id}
-                  className={`flex items-center gap-1 border-b border-line last:border-0 ${
-                    a.presente ? 'border-l-4 border-l-emerald-500 bg-emerald-50/50' : 'border-l-4 border-l-transparent'
+                  className={`flex items-center gap-1 border-b border-line last:border-b-0 ${
+                    a.presente ? 'bg-emerald-50 shadow-[inset_4px_0_0_0_#10b981]' : ''
                   }`}
                 >
                   <button
@@ -624,6 +784,7 @@ export function ChamadaPage() {
             <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
             </PrimaryButton>
+            {btnDesfazer}
           </div>
         ) : finalizado ? (
           <div className={acoesChamadaClass}>
@@ -645,6 +806,7 @@ export function ChamadaPage() {
             >
               Cancelar
             </GhostButton>
+            {btnDesfazer}
           </div>
         ) : (
           <div className={acoesChamadaClass}>
@@ -657,6 +819,7 @@ export function ChamadaPage() {
                 'Enviar relatório'
               )}
             </PrimaryButton>
+            {btnDesfazer}
           </div>
         )}
       </div>
@@ -688,10 +851,11 @@ export function ChamadaPage() {
 
       <div className="mb-4">
         <span className="mb-1 block text-[13px] font-medium">Data da aula</span>
-        <AulaDateSelect value={data} onChange={setData} eventos={state.eventos} licoes={state.licoes} />
+        <AulaDateSelect value={data} onChange={escolherData} eventos={state.eventos} licoes={state.licoes} />
       </div>
 
       {avisoConsulta}
+      {avisos}
       {planoTravado ? null : classeSalva && !finalizado ? (
         <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           Chamada desta classe salva. As outras classes do dia continuam pendentes até serem abertas e salvas.
@@ -724,8 +888,8 @@ export function ChamadaPage() {
             return (
               <li
                 key={a.pessoaId}
-                className={`flex items-center gap-1 border-b border-line last:border-0 ${
-                  a.presente ? 'border-l-4 border-l-emerald-500 bg-emerald-50/50' : 'border-l-4 border-l-transparent'
+                className={`flex items-center gap-1 border-b border-line last:border-b-0 ${
+                  a.presente ? 'bg-emerald-50 shadow-[inset_4px_0_0_0_#10b981]' : ''
                 }`}
               >
                 <button
@@ -876,6 +1040,7 @@ export function ChamadaPage() {
             <GhostButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>Salvar</GhostButton>
           </>
         )}
+        {btnDesfazer}
       </div>
     </div>
   )

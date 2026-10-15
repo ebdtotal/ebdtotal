@@ -219,6 +219,13 @@ export async function apiEsqueciSenha(usuario: string) {
   })
 }
 
+export async function apiConferirSenha(senha: string) {
+  return req<{ ok: boolean }>('senha.php', {
+    method: 'POST',
+    body: JSON.stringify({ acao: 'conferir', senha }),
+  })
+}
+
 export async function apiAlterarSenha(senhaAtual: string, senhaNova: string) {
   return req<{ ok: boolean }>('senha.php', {
     method: 'POST',

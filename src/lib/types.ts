@@ -24,6 +24,29 @@ export type Sexo = (typeof SEXOS)[number]
 export const STATUS_PESSOA = ['Ativo', 'Inativo'] as const
 export type StatusPessoa = (typeof STATUS_PESSOA)[number]
 
+export const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+] as const
+
+export const TIPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
+export type TipoSanguineo = (typeof TIPOS_SANGUINEOS)[number]
+
+export const ESTADOS_CIVIS = ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)', 'Separado(a)'] as const
+export type EstadoCivil = (typeof ESTADOS_CIVIS)[number]
+
+export const ESCOLARIDADES = [
+  'Educação infantil',
+  'Fundamental incompleto',
+  'Fundamental completo',
+  'Médio incompleto',
+  'Médio completo',
+  'Superior incompleto',
+  'Superior completo',
+  'Pós-graduação',
+] as const
+export type Escolaridade = (typeof ESCOLARIDADES)[number]
+
 export const STATUS_ESCOLA = ['Ativa', 'Pendente', 'Inativa'] as const
 export type StatusEscola = (typeof STATUS_ESCOLA)[number]
 
@@ -59,6 +82,18 @@ export type Pessoa = {
   escolaId: string
   telefone?: string
   email?: string
+  cpf?: string
+  endereco?: string
+  numero?: string
+  bairro?: string
+  cidade?: string
+  estado?: string
+  responsaveis?: string
+  contato?: string
+  tipoSanguineo?: string
+  dataMatricula?: string
+  estadoCivil?: string
+  escolaridade?: string
   updatedAt?: string
 }
 
@@ -98,6 +133,8 @@ export type ChamadaAluno = {
   ofertou: boolean
   participacao: boolean
   pontosParticipacao?: number
+  /** Falta justificada. A presença continua desmarcada. */
+  justificativa?: string
 }
 
 /** Chamada e oferta de uma classe no dia. Cada classe é salva à parte. */
