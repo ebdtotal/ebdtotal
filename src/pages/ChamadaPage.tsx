@@ -25,7 +25,8 @@ import { formatDateBR, lastSunday, moneyBR, parseMoneyBR, toISODate, uid } from 
 
 const CHAMADA_PROFESSORES = '__professores__'
 const acoesChamadaClass =
-  'fixed inset-x-0 z-40 flex flex-col gap-2 border-t-2 border-gold bg-navy px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:z-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none'
+  'fixed inset-x-0 z-40 flex flex-row flex-wrap items-stretch gap-1.5 border-t-2 border-gold bg-navy px-2 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.35)] bottom-[calc(3.25rem+max(env(safe-area-inset-bottom),var(--safe-bottom,0px)))] lg:static lg:inset-auto lg:z-auto lg:flex-col lg:gap-2 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none'
+const acaoBtnClass = '!w-auto min-w-0 flex-1 basis-0 !px-1.5 !text-[12px] leading-tight lg:!w-full lg:flex-none lg:basis-auto lg:!px-4 lg:!text-sm'
 
 export function ChamadaPage() {
   const { state, escolasVisiveis, saveRelatorio, usuario, podeVerTudo, ehProfessor, bloqueiaChamadaEFinanceiro: planoTravado } = useStore()
@@ -473,14 +474,14 @@ export function ChamadaPage() {
 
   const btnDesfazer = planoTravado ? null : (
     <GhostButton
-      className="w-full"
+      className={acaoBtnClass}
       onClick={() => {
         setSenhaDesfazer('')
         setErroSenha('')
         setPedirSenha(true)
       }}
     >
-      Desfazer chamada
+      Desfazer
     </GhostButton>
   )
 
@@ -639,7 +640,7 @@ export function ChamadaPage() {
 
   if (modoProfessores) {
     return (
-      <div className="pb-40 lg:pb-0">
+      <div className="pb-24 lg:pb-0">
         <div className="mb-4 flex items-center gap-2">
           <button
             type="button"
@@ -781,7 +782,7 @@ export function ChamadaPage() {
           <div className={acoesChamadaClass}>{acoesConsulta}</div>
         ) : bloqueado ? (
           <div className={acoesChamadaClass}>
-            <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
+            <PrimaryButton className={acaoBtnClass} onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
             </PrimaryButton>
             {btnDesfazer}
@@ -789,7 +790,7 @@ export function ChamadaPage() {
         ) : finalizado ? (
           <div className={acoesChamadaClass}>
             <PrimaryButton
-              className="w-full"
+              className={acaoBtnClass}
               onClick={() => {
                 salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })
                 setEditando(false)
@@ -798,7 +799,7 @@ export function ChamadaPage() {
               Salvar alterações
             </PrimaryButton>
             <GhostButton
-              className="w-full"
+              className={acaoBtnClass}
               onClick={() => {
                 setEditando(false)
                 setCarregado('')
@@ -810,7 +811,7 @@ export function ChamadaPage() {
           </div>
         ) : (
           <div className={acoesChamadaClass}>
-            <PrimaryButton className="w-full tracking-wide" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>
+            <PrimaryButton className={`${acaoBtnClass} tracking-wide`} onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>
               {classeSalva ? (
                 <>
                   <Check size={16} /> Relatório enviado
@@ -827,7 +828,7 @@ export function ChamadaPage() {
   }
 
   return (
-    <div className="pb-40 lg:pb-0">
+    <div className="pb-24 lg:pb-0">
       <div className="mb-4 flex items-center gap-2">
         {ehProfessor ? null : (
           <button
@@ -1006,15 +1007,15 @@ export function ChamadaPage() {
           acoesConsulta
         ) : bloqueado ? (
           <>
-            <span className="text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Chamada desta classe finalizada</span>
-            <PrimaryButton className="w-full" onClick={() => setEditando(true)}>
+            <span className="basis-full text-center text-sm font-medium text-emerald-300 lg:text-emerald-600">Chamada desta classe finalizada</span>
+            <PrimaryButton className={acaoBtnClass} onClick={() => setEditando(true)}>
               <Pencil size={16} /> Editar chamada
             </PrimaryButton>
           </>
         ) : finalizado ? (
           <>
             <PrimaryButton
-              className="w-full"
+              className={acaoBtnClass}
               onClick={() => {
                 salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })
                 setEditando(false)
@@ -1023,7 +1024,7 @@ export function ChamadaPage() {
               Salvar alterações
             </PrimaryButton>
             <GhostButton
-              className="w-full"
+              className={acaoBtnClass}
               onClick={() => {
                 setEditando(false)
                 setCarregado('')
@@ -1034,10 +1035,10 @@ export function ChamadaPage() {
           </>
         ) : (
           <>
-            <PrimaryButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })}>
+            <PrimaryButton className={acaoBtnClass} onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true, finalizarClasse: true })}>
               <Check size={16} /> Finalizar
             </PrimaryButton>
-            <GhostButton className="w-full" onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>Salvar</GhostButton>
+            <GhostButton className={acaoBtnClass} onClick={() => salvar(alunos, extrasAgora(), { salvarClasse: true })}>Salvar</GhostButton>
           </>
         )}
         {btnDesfazer}
